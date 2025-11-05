@@ -1,0 +1,23 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Welcome - Quiz Platform{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row min-vh-100 align-items-center">
+        <div class="col-lg-6 mx-auto text-center">
+            <div class="landing-hero">
+                <i class="fas fa-graduation-cap fa-5x mb-4" style="color: var(--primary-color);"></i>
+                <h1 class="display-3 fw-bold mb-4">Welcome to Quiz Platform</h1>
+                <p class="lead mb-5 text-muted">
+                    Your comprehensive learning and assessment solution. 
+                    Login to access quizzes, content, and track your progress.
+                </p>
+                <a href="{% url 'quiz:login' %}" class="btn btn-primary btn-lg px-5 py-3">
+                    <i class="fas fa-sign-in-alt me-2"></i>Login to Continue
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

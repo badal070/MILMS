@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Student Info{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow-lg border-0 rounded-4">
+        <div class="card-body">
+            <h2 class="mb-4 text-center fw-bold">Student Profile</h2>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Name:</strong> {{ student.name }}</p>
+                    <p><strong>Email:</strong> {{ student.email }}</p>
+                    <p><strong>Roll Number:</strong> {{ student.roll_number }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Department:</strong> {{ student.department }}</p>
+                    <p><strong>Year:</strong> {{ student.year }}</p>
+                    <p><strong>Joined On:</strong> {{ student.join_date|date:"F j, Y" }}</p>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <h4 class="mb-3">Enrolled Subjects</h4>
+            <ul class="list-group list-group-flush">
+                {% for subject in student.subjects.all %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    {{ subject.name }}
+                    <span class="badge bg-primary rounded-pill">{{ subject.code }}</span>
+                </li>
+                {% empty %}
+                <li class="list-group-item text-muted">No subjects enrolled yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

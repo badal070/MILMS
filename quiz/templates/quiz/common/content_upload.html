@@ -1,0 +1,91 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Upload Content{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="page-header">
+                <h1 class="page-title">Upload Learning Content</h1>
+                <p class="text-muted">Share educational resources with students</p>
+            </div>
+            
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Title *</label>
+                            {{ form.title }}
+                            {% if form.title.errors %}
+                            <div class="text-danger small">{{ form.title.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Description</label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                            <div class="text-danger small">{{ form.description.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">Subject</label>
+                                {{ form.subject }}
+                                {% if form.subject.errors %}
+                                <div class="text-danger small">{{ form.subject.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-semibold">Standard</label>
+                                {{ form.standard }}
+                                {% if form.standard.errors %}
+                                <div class="text-danger small">{{ form.standard.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">PDF File *</label>
+                            {{ form.file }}
+                            <small class="form-text text-muted">Only PDF files are allowed (Max 10MB)</small>
+                            {% if form.file.errors %}
+                            <div class="text-danger small">{{ form.file.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="form-check">
+                                {{ form.is_public }}
+                                <label class="form-check-label" for="id_is_public">
+                                    Make this content public (visible to all institutions)
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-upload me-2"></i>Upload Content
+                            </button>
+                            <a href="{% url 'quiz:teacher_content' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    {{ form.media }}
+    .form-control, .form-select {
+        border-radius: 6px;
+    }
+</style>
+{% endblock %}

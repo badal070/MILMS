@@ -1,0 +1,115 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Learning Content{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Learning Content</h1>
+        <p class="text-muted">Access study materials and resources</p>
+    </div>
+    
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Subject</label>
+                    <select name="subject" class="form-select">
+                        <option value="">All Subjects</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}" {% if selected_subject == subject.id|stringformat:"s" %}selected{% endif %}>
+                            {{ subject.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Standard</label>
+                    <select name="standard" class="form-select">
+                        <option value="">All Standards</option>
+                        {% for standard in standards %}
+                        <option value="{{ standard.id }}" {% if selected_standard == standard.id|stringformat:"s" %}selected{% endif %}>
+                            {{ standard.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter me-2"></i>Apply Filters
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Content Grid -->
+    <div class="row">
+        {% for content in page_obj %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-file-pdf fa-4x text-danger"></i>
+                    </div>
+                    <h5 class="card-title">{{ content.title }}</h5>
+                    <p class="card-text text-muted small">{{ content.description|truncatewords:15 }}</p>
+                    
+                    <div class="mb-3">
+                        {% if content.subject %}
+                        <span class="badge bg-primary">{{ content.subject.name }}</span>
+                        {% endif %}
+                        {% if content.standard %}
+                        <span class="badge bg-secondary">{{ content.standard.name }}</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="small text-muted mb-3">
+                        <i class="fas fa-user me-1"></i>{{ content.uploaded_by.username }}
+                        <span class="mx-2">|</span>
+                        <i class="fas fa-eye me-1"></i>{{ content.view_count }} views
+                    </div>
+                    
+                    <a href="{% url 'quiz:content_view' content.id %}" class="btn btn-danger w-100" target="_blank">
+                        <i class="fas fa-external-link-alt me-2"></i>View PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle me-2"></i>No content available.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav>
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if selected_subject %}&subject={{ selected_subject }}{% endif %}{% if selected_standard %}&standard={{ selected_standard }}{% endif %}">Previous</a>
+            </li>
+            {% endif %}
+            
+            {% for num in page_obj.paginator.page_range %}
+            <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                <a class="page-link" href="?page={{ num }}{% if selected_subject %}&subject={{ selected_subject }}{% endif %}{% if selected_standard %}&standard={{ selected_standard }}{% endif %}">{{ num }}</a>
+            </li>
+            {% endfor %}
+            
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if selected_subject %}&subject={{ selected_subject }}{% endif %}{% if selected_standard %}&standard={{ selected_standard }}{% endif %}">Next</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

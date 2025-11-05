@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Teacher Profile{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+  <div class="card shadow-lg border-0 rounded-4">
+    <div class="card-body">
+      <h3 class="fw-bold mb-4 text-center">Profile</h3>
+
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Name:</strong> {{ teacher.name }}</p>
+          <p><strong>Email:</strong> {{ teacher.email }}</p>
+          <p><strong>Department:</strong> {{ teacher.department }}</p>
+        </div>
+        <div class="col-md-6">
+          <p><strong>Joined:</strong> {{ teacher.join_date|date:"F j, Y" }}</p>
+          <p><strong>Subjects:</strong></p>
+          <ul>
+            {% for subject in teacher.subjects.all %}
+            <li>{{ subject.name }}</li>
+            {% empty %}
+            <li>No subjects assigned.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

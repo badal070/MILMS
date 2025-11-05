@@ -1,0 +1,135 @@
+{% extends 'admin/base_site.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Upload Questions from Word File</h1>
+    <div class="card mt-4">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="{{ form.subject.id_for_label }}" class="form-label">Subject:</label>
+                    {{ form.subject }}
+                </div>
+                <div class="mb-3">
+                    <label for="{{ form.standard.id_for_label }}" class="form-label">Standard:</label>
+                    {{ form.standard }}
+                </div>
+                <div class="mb-3">
+                    <label for="{{ form.file.id_for_label }}" class="form-label">Word File (.docx):</label>
+                    {{ form.file }}
+                </div>
+                <button type="submit" class="btn btn-primary">Upload and Process</button>
+                <a href="{% url 'admin:quiz_questionupload_changelist' %}" class="btn btn-secondary">Cancel</a>
+            </form>
+            
+            <div class="mt-4">
+                <h5>Format Guidelines:</h5>
+                <ul>
+                    <li>Questions must end with '?', ':', or '.'</li>
+                    <li>Each question must have exactly 4 options</li>
+                    <li>Mark the correct answer with '*' at the end</li>
+                    <li>Example:
+                        <pre class="mt-2">
+What is the capital of France?
+Paris*
+London
+Berlin
+Madrid
+                        </pre>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="text-white text-center mb-4">
+            <i class="fas fa-clipboard-list"></i> Available Quizzes
+        </h1>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="mb-3"><i class="fas fa-filter"></i> Filter Quizzes</h5>
+                <form method="get">
+                    <div class="row">
+                        <div class="col-md-5">
+                            <label for="subject" class="form-label">Subject</label>
+                            <select name="subject" id="subject" class="form-control">
+                                <option value="">All Subjects</option>
+                                {% for subject in subjects %}
+                                    <option value="{{ subject.id }}" {% if selected_subject == subject.id|stringformat:"s" %}selected{% endif %}>
+                                        {{ subject.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label for="standard" class="form-label">Standard</label>
+                            <select name="standard" id="standard" class="form-control">
+                                <option value="">All Standards</option>
+                                {% for standard in standards %}
+                                    <option value="{{ standard.id }}" {% if selected_standard == standard.id|stringformat:"s" %}selected{% endif %}>
+                                        {{ standard.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-search"></i> Filter
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quiz List -->
+{% if quizzes %}
+    <div class="row">
+        {% for quiz in quizzes %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header" style="background: linear-gradient(135deg, var(--primary-color), #357abd); color: white;">
+                    <h5 class="mb-0">{{ quiz.title }}</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><i class="fas fa-book"></i> <strong>Subject:</strong> {{ quiz.subject.name }}</p>
+                    <p class="mb-2"><i class="fas fa-layer-group"></i> <strong>Standard:</strong> {{ quiz.standard.name }}</p>
+                    <p class="mb-2"><i class="fas fa-question-circle"></i> <strong>Questions:</strong> {{ quiz.questions.count }}</p>
+                    <p class="mb-2"><i class="fas fa-clock"></i> <strong>Duration:</strong> {{ quiz.duration_minutes }} minutes</p>
+                    <p class="mb-3"><i class="fas fa-calculator"></i> <strong>Marking:</strong> +{{ quiz.marking_scheme.correct_marks }} / -{{ quiz.marking_scheme.wrong_marks }}</p>
+                    <a href="{% url 'quiz:take_quiz' quiz.id %}" class="btn btn-primary w-100">
+                        <i class="fas fa-play"></i> Start Quiz
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center p-5">
+                    <i class="fas fa-inbox fa-4x text-muted mb-4"></i>
+                    <h4>No quizzes available</h4>
+                    <p class="text-muted">Try changing your filter selection or check back later.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

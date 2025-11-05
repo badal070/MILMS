@@ -1,0 +1,77 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="page-header">
+                <h1 class="page-title">My Profile</h1>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center border-end">
+                            <i class="fas fa-user-circle fa-5x text-primary mb-3"></i>
+                            <h5>{{ user_profile.display_name }}</h5>
+                            <p class="text-muted">{{ user.username }}</p>
+                            <span class="badge bg-primary">{{ user_profile.get_role_display }}</span>
+                        </div>
+                        <div class="col-md-8">
+                            <h5 class="mb-3">Account Information</h5>
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th width="40%">Username:</th>
+                                    <td>{{ user.username }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Email:</th>
+                                    <td>{{ user.email|default:"Not set" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Role:</th>
+                                    <td>{{ user_profile.get_role_display }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Institution:</th>
+                                    <td>{{ user_profile.institution.name }}</td>
+                                </tr>
+                                {% if user_profile.role == 'student' %}
+                                <tr>
+                                    <th>Roll Number:</th>
+                                    <td>{{ user_profile.roll_number }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <th>Member Since:</th>
+                                    <td>{{ user.date_joined|date:"M d, Y" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if stats %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        {% for key, value in stats.items %}
+                        <div class="col-md-6 mb-3">
+                            <div class="stat-value">{{ value }}</div>
+                            <div class="stat-label">{{ key|title|replace:"_":" " }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

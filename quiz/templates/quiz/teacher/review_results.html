@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Review Results{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+  <h3 class="fw-bold mb-4 text-center">Student Quiz Results</h3>
+
+  <table class="table table-striped shadow-sm">
+    <thead class="table-dark">
+      <tr>
+        <th>Student</th>
+        <th>Quiz</th>
+        <th>Score</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for result in results %}
+      <tr>
+        <td>{{ result.student.name }}</td>
+        <td>{{ result.quiz.title }}</td>
+        <td>{{ result.score }} / {{ result.quiz.total_marks }}</td>
+        <td>{{ result.date|date:"M d, Y" }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="4" class="text-center text-muted">No results yet.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
