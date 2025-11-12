@@ -36,4 +36,23 @@ urlpatterns = [
     # ============ CONTENT MANAGEMENT (MULTI-ROLE) ============
     path('content/<int:content_id>/view/', views.content_view, name='content_view'),
     path('content/upload/', views.content_upload, name='content_upload'),
+    
+    path('upload/questions/', views.upload_questions_standalone, name='upload_questions'),
+    path('upload/questions/<int:upload_id>/preview/', views.preview_questions_standalone, name='preview_questions'),
+    path('upload/questions/<int:upload_id>/process/', views.process_questions_standalone, name='process_questions'),
+    
+    # ============ STUDENT - DESCRIPTIVE QUIZ URLS ============
+    path('student/descriptive-quizzes/', views.student_descriptive_quizzes, name='student_descriptive_quizzes'),
+    path('student/descriptive-quiz/<int:quiz_id>/', views.take_descriptive_quiz, name='take_descriptive_quiz'),
+    path('student/descriptive-results/<int:attempt_id>/', views.descriptive_quiz_results, name='descriptive_quiz_results'),
+    path('student/my-descriptive-attempts/', views.my_descriptive_attempts, name='my_descriptive_attempts'),
+    
+    # ============ TEACHER - DESCRIPTIVE QUIZ URLS ============
+    path('teacher/descriptive-quizzes/', views.teacher_descriptive_quizzes, name='teacher_descriptive_quizzes'),
+    path('teacher/review-pending/', views.review_pending_attempts, name='review_pending_attempts'),
+    path('teacher/review-attempt/<int:attempt_id>/', views.review_descriptive_attempt, name='review_descriptive_attempt'),
+    path('teacher/descriptive-analytics/<int:quiz_id>/', views.descriptive_quiz_analytics, name='descriptive_quiz_analytics'),
+    
+    # ============ AJAX ENDPOINTS ============
+    path('api/save-descriptive-progress/', views.save_descriptive_progress, name='save_descriptive_progress'),
 ]

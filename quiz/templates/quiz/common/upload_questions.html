@@ -1,0 +1,70 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Upload Questions{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="page-header">
+                <h1 class="page-title">Upload Questions</h1>
+                <p class="text-muted">Import questions from Word or PDF files</p>
+            </div>
+            
+            <div class="card mb-4" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                <div class="card-body">
+                    <h5 class="mb-3">📋 Format Guidelines</h5>
+                    <ul class="mb-0">
+                        <li>Question must end with ?, ., or :</li>
+                        <li>Exactly 4 options required</li>
+                        <li>Mark correct answer with * at the end</li>
+                        <li>Supported: .docx, .pdf (Max 10MB)</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Subject *</label>
+                            {{ form.subject }}
+                            {% if form.subject.errors %}
+                            <div class="text-danger">{{ form.subject.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Standard *</label>
+                            {{ form.standard }}
+                            {% if form.standard.errors %}
+                            <div class="text-danger">{{ form.standard.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Question File *</label>
+                            {{ form.file }}
+                            {% if form.file.errors %}
+                            <div class="text-danger">{{ form.file.errors }}</div>
+                            {% endif %}
+                            <div class="form-text">Upload .docx or .pdf file</div>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload me-2"></i>Upload & Preview
+                            </button>
+                            <a href="{% url 'quiz:teacher_dashboard' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

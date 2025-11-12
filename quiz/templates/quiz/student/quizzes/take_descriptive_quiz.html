@@ -1,0 +1,280 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}{{ quiz.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .question-card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .word-counter {
+        text-align: right;
+        color: #6b7280;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+    }
+    
+    .word-counter.warning {
+        color: #f59e0b;
+        font-weight: 600;
+    }
+    
+    .word-counter.danger {
+        color: #ef4444;
+        font-weight: 600;
+    }
+    
+    .answer-textarea {
+        min-height: 200px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 1rem;
+        font-size: 1rem;
+        line-height: 1.6;
+        transition: border-color 0.3s;
+    }
+    
+    .answer-textarea:focus {
+        border-color: #4f46e5;
+        outline: none;
+    }
+    
+    .save-indicator {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        display: none;
+    }
+    
+    .save-indicator.show {
+        display: block;
+        animation: fadeIn 0.3s;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">{{ quiz.title }}</h1>
+        <p class="text-muted">{{ quiz.description }}</p>
+        <div class="mt-3">
+            <span class="badge bg-primary me-2">{{ quiz.subject.name }}</span>
+            <span class="badge bg-secondary me-2">{{ quiz.standard.name }}</span>
+            <span class="badge bg-info text-dark me-2">
+                <i class="fas fa-question-circle me-1"></i>{{ questions.count }} Questions
+            </span>
+            <span class="badge bg-warning text-dark me-2">
+                <i class="fas fa-award me-1"></i>{{ quiz.total_marks }} Marks
+            </span>
+            <span class="badge bg-success">
+                <i class="fas fa-clock me-1"></i>{{ quiz.duration_minutes }} Minutes
+            </span>
+        </div>
+    </div>
+    
+    <!-- Instructions -->
+    <div class="alert alert-info mb-4">
+        <h5><i class="fas fa-info-circle me-2"></i>Instructions</h5>
+        <ul class="mb-0">
+            <li>Answer all questions in detail</li>
+            <li>Your answers will be auto-saved as you type</li>
+            <li>Click "Save Draft" to save and continue later</li>
+            <li>Click "Submit Quiz" when you're ready for evaluation</li>
+            {% if quiz.auto_evaluate %}
+            <li><strong>AI Evaluation:</strong> This quiz uses AI-powered evaluation for instant feedback</li>
+            {% endif %}
+            {% if quiz.require_manual_review %}
+            <li><strong>Teacher Review:</strong> Your answers will also be reviewed by your teacher</li>
+            {% endif %}
+        </ul>
+    </div>
+    
+    <form method="post" id="quizForm">
+        {% csrf_token %}
+        
+        {% for question in questions %}
+        <div class="question-card" id="question-{{ question.id }}">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <h5 class="mb-0">
+                    <span class="badge bg-primary me-2">Q{{ forloop.counter }}</span>
+                    <span class="badge bg-success">{{ question.max_marks }} marks</span>
+                </h5>
+                <span class="text-muted small">
+                    <i class="fas fa-text-width me-1"></i>Recommended: {{ question.word_limit }} words
+                </span>
+            </div>
+            
+            <p class="fw-semibold mb-3">{{ question.question_text }}</p>
+            
+            {% if question.marking_guidelines %}
+            <div class="alert alert-light mb-3">
+                <small><strong>Key Points to Cover:</strong> {{ question.marking_guidelines }}</small>
+            </div>
+            {% endif %}
+            
+            <textarea 
+                name="answer_{{ question.id }}" 
+                id="answer_{{ question.id }}"
+                class="form-control answer-textarea"
+                placeholder="Type your answer here..."
+                data-question-id="{{ question.id }}"
+                data-attempt-id="{{ attempt.id }}"
+                data-word-limit="{{ question.word_limit }}"
+            >{% if answers %}{{ answers|get_item:question.id|get_attr:"answer_text" }}{% endif %}</textarea>
+            
+            <div class="word-counter" id="counter-{{ question.id }}">
+                <i class="fas fa-keyboard me-1"></i>
+                <span class="current-words">0</span> / {{ question.word_limit }} words
+            </div>
+        </div>
+        {% endfor %}
+        
+        <!-- Submit Section -->
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <div class="d-flex gap-3 justify-content-center">
+                    <button type="submit" name="action" value="save" class="btn btn-secondary btn-lg px-5">
+                        <i class="fas fa-save me-2"></i>Save Draft
+                    </button>
+                    <button type="submit" name="action" value="submit" class="btn btn-success btn-lg px-5" 
+                            onclick="return confirm('Are you sure you want to submit? You cannot change answers after submission.');">
+                        <i class="fas fa-paper-plane me-2"></i>Submit Quiz
+                    </button>
+                </div>
+                <p class="text-muted mt-3 mb-0">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Your progress is auto-saved every 30 seconds
+                </p>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Save Indicator -->
+<div class="save-indicator" id="saveIndicator">
+    <i class="fas fa-check-circle text-success me-2"></i>
+    <span>Progress saved</span>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const textareas = document.querySelectorAll('.answer-textarea');
+    const saveIndicator = document.getElementById('saveIndicator');
+    let saveTimeout = null;
+    
+    // Word counter
+    textareas.forEach(textarea => {
+        const questionId = textarea.dataset.questionId;
+        const wordLimit = parseInt(textarea.dataset.wordLimit);
+        const counter = document.getElementById(`counter-${questionId}`);
+        
+        function updateWordCount() {
+            const text = textarea.value.trim();
+            const words = text === '' ? 0 : text.split(/\s+/).length;
+            const currentWordsSpan = counter.querySelector('.current-words');
+            currentWordsSpan.textContent = words;
+            
+            // Color coding
+            counter.classList.remove('warning', 'danger');
+            if (words > wordLimit * 1.2) {
+                counter.classList.add('danger');
+            } else if (words > wordLimit) {
+                counter.classList.add('warning');
+            }
+        }
+        
+        // Initial count
+        updateWordCount();
+        
+        // Update on input
+        textarea.addEventListener('input', function() {
+            updateWordCount();
+            
+            // Auto-save (debounced)
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                saveProgress(questionId, textarea.value);
+            }, 3000);
+        });
+    });
+    
+    // Auto-save function
+    function saveProgress(questionId, answerText) {
+        const attemptId = document.querySelector('[data-attempt-id]').dataset.attemptId;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch('{% url "quiz:save_descriptive_progress" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrfToken
+            },
+            body: new URLSearchParams({
+                attempt_id: attemptId,
+                question_id: questionId,
+                answer_text: answerText
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSaveIndicator();
+            }
+        })
+        .catch(error => {
+            console.error('Save error:', error);
+        });
+    }
+    
+    function showSaveIndicator() {
+        saveIndicator.classList.add('show');
+        setTimeout(() => {
+            saveIndicator.classList.remove('show');
+        }, 2000);
+    }
+    
+    // Periodic auto-save
+    setInterval(() => {
+        textareas.forEach(textarea => {
+            if (textarea.value.trim() !== '') {
+                const questionId = textarea.dataset.questionId;
+                saveProgress(questionId, textarea.value);
+            }
+        });
+    }, 30000); // Every 30 seconds
+    
+    // Warn before leaving
+    window.addEventListener('beforeunload', function(e) {
+        const hasUnsaved = Array.from(textareas).some(ta => ta.value.trim() !== '');
+        if (hasUnsaved) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+});
+
+// Helper filter for template
+document.addEventListener('DOMContentLoaded', function() {
+    // Custom template filter simulation (since we can't use custom filters easily)
+    const answers = {{ answers|safe|default:"{}" }};
+});
+</script>
+{% endblock %}

@@ -1,0 +1,372 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Review Pending Attempts{% endblock %}
+
+{% block extra_css %}
+<style>
+    .attempt-card {
+        transition: all 0.3s;
+        cursor: pointer;
+    }
+    
+    .attempt-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    }
+    
+    .status-badge {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .priority-indicator {
+        width: 4px;
+        height: 100%;
+        position: absolute;
+        left: 0;
+        top: 0;
+        border-radius: 12px 0 0 12px;
+    }
+    
+    .priority-high { background: #ef4444; }
+    .priority-medium { background: #f59e0b; }
+    .priority-low { background: #10b981; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="page-title">
+                    <i class="fas fa-clipboard-check me-2"></i>Review Pending Attempts
+                </h1>
+                <p class="text-muted mb-0">Evaluate and provide feedback on student submissions</p>
+            </div>
+            <div>
+                <a href="{% url 'quiz:teacher_dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Summary Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <div class="stat-value text-warning">{{ page_obj.paginator.count }}</div>
+                    <div class="stat-label">Total Pending</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: var(--secondary-color);">
+                <div class="card-body text-center">
+                    <div class="stat-value" style="color: var(--secondary-color);">
+                        {{ page_obj.paginator.count|add:"-10"|default:"0" }}
+                    </div>
+                    <div class="stat-label">Submitted (New)</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: var(--warning-color);">
+                <div class="card-body text-center">
+                    <div class="stat-value" style="color: var(--warning-color);">10</div>
+                    <div class="stat-label">AI Evaluated</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: var(--success-color);">
+                <div class="card-body text-center">
+                    <div class="stat-value" style="color: var(--success-color);">
+                        <a href="{% url 'quiz:teacher_descriptive_quizzes' %}" class="text-decoration-none">
+                            View All
+                        </a>
+                    </div>
+                    <div class="stat-label">Reviewed Today</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filter and Sort Options -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Filter by Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Pending</option>
+                        <option value="submitted" {% if request.GET.status == 'submitted' %}selected{% endif %}>
+                            Submitted (Need Review)
+                        </option>
+                        <option value="ai_evaluated" {% if request.GET.status == 'ai_evaluated' %}selected{% endif %}>
+                            AI Evaluated (Need Manual Review)
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Sort By</label>
+                    <select name="sort" class="form-select">
+                        <option value="-submitted_at">Newest First</option>
+                        <option value="submitted_at" {% if request.GET.sort == 'submitted_at' %}selected{% endif %}>
+                            Oldest First
+                        </option>
+                        <option value="quiz__title" {% if request.GET.sort == 'quiz__title' %}selected{% endif %}>
+                            Quiz Name
+                        </option>
+                        <option value="user__profile__student_name" {% if request.GET.sort == 'user__profile__student_name' %}selected{% endif %}>
+                            Student Name
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Quiz</label>
+                    <select name="quiz" class="form-select">
+                        <option value="">All Quizzes</option>
+                        {% for attempt in page_obj %}
+                            <option value="{{ attempt.quiz.id }}">{{ attempt.quiz.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter me-2"></i>Apply Filters
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Pending Attempts List -->
+    {% if page_obj %}
+    <div class="row">
+        {% for attempt in page_obj %}
+        <div class="col-md-6 mb-4">
+            <div class="card attempt-card h-100" onclick="window.location.href='{% url 'quiz:review_descriptive_attempt' attempt.id %}'">
+                <!-- Priority Indicator -->
+                <div class="priority-indicator 
+                    {% if attempt.status == 'submitted' %}priority-high
+                    {% elif attempt.status == 'ai_evaluated' %}priority-medium
+                    {% else %}priority-low{% endif %}">
+                </div>
+                
+                <div class="card-body" style="padding-left: 1.5rem;">
+                    <!-- Header -->
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h5 class="mb-1">
+                                <i class="fas fa-user-circle me-2 text-primary"></i>
+                                {{ attempt.user.profile.display_name }}
+                            </h5>
+                            <small class="text-muted">
+                                Roll: {{ attempt.user.profile.roll_number }}
+                            </small>
+                        </div>
+                        <div>
+                            {% if attempt.status == 'submitted' %}
+                            <span class="badge bg-danger status-badge">
+                                <i class="fas fa-exclamation-circle me-1"></i>New Submission
+                            </span>
+                            {% elif attempt.status == 'ai_evaluated' %}
+                            <span class="badge bg-warning text-dark status-badge">
+                                <i class="fas fa-robot me-1"></i>AI Evaluated
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Quiz Info -->
+                    <div class="mb-3">
+                        <h6 class="mb-2">
+                            <i class="fas fa-clipboard-list me-2 text-success"></i>
+                            {{ attempt.quiz.title }}
+                        </h6>
+                        <div class="d-flex gap-2">
+                            <span class="badge bg-primary">{{ attempt.quiz.subject.name }}</span>
+                            <span class="badge bg-secondary">{{ attempt.quiz.standard.name }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Stats -->
+                    <div class="row text-center mb-3">
+                        <div class="col-4 border-end">
+                            <div class="fw-bold text-primary">{{ attempt.quiz.questions.count }}</div>
+                            <small class="text-muted">Questions</small>
+                        </div>
+                        <div class="col-4 border-end">
+                            <div class="fw-bold text-success">{{ attempt.total_marks }}</div>
+                            <small class="text-muted">Total Marks</small>
+                        </div>
+                        <div class="col-4">
+                            {% if attempt.ai_score %}
+                            <div class="fw-bold text-warning">{{ attempt.ai_score }}</div>
+                            <small class="text-muted">AI Score</small>
+                            {% else %}
+                            <div class="fw-bold text-muted">-</div>
+                            <small class="text-muted">AI Score</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Submission Info -->
+                    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                        <small class="text-muted">
+                            <i class="fas fa-calendar me-1"></i>
+                            Submitted: {{ attempt.submitted_at|date:"M d, Y" }}
+                        </small>
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>
+                            {{ attempt.submitted_at|timesince }} ago
+                        </small>
+                    </div>
+                    
+                    {% if attempt.ai_evaluated_at %}
+                    <div class="mt-2">
+                        <small class="text-success">
+                            <i class="fas fa-robot me-1"></i>
+                            AI evaluated {{ attempt.ai_evaluated_at|timesince }} ago
+                        </small>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Review Button -->
+                    <div class="mt-3">
+                        <a href="{% url 'quiz:review_descriptive_attempt' attempt.id %}" 
+                           class="btn btn-primary w-100"
+                           onclick="event.stopPropagation();">
+                            <i class="fas fa-pen-to-square me-2"></i>Review Now
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}">
+                    <i class="fas fa-chevron-left"></i> Previous
+                </a>
+            </li>
+            {% endif %}
+            
+            {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}">
+                        {{ num }}
+                    </a>
+                </li>
+                {% endif %}
+            {% endfor %}
+            
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}">
+                    Next <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+    
+    {% else %}
+    <!-- Empty State -->
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-check-double fa-4x text-success mb-4"></i>
+            <h3>All Caught Up!</h3>
+            <p class="text-muted mb-4">
+                There are no pending attempts to review at the moment.
+            </p>
+            <div class="d-flex gap-3 justify-content-center">
+                <a href="{% url 'quiz:teacher_descriptive_quizzes' %}" class="btn btn-primary">
+                    <i class="fas fa-clipboard-list me-2"></i>View My Quizzes
+                </a>
+                <a href="{% url 'quiz:teacher_dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-home me-2"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Quick Tips -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Review Tips</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6><i class="fas fa-star me-2 text-warning"></i>Review Best Practices</h6>
+                    <ul class="small">
+                        <li>Check AI evaluation scores for guidance</li>
+                        <li>Compare answers with reference answers</li>
+                        <li>Look for key points mentioned in marking guidelines</li>
+                        <li>Provide constructive and specific feedback</li>
+                        <li>Be consistent in your marking approach</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6><i class="fas fa-keyboard me-2 text-info"></i>Keyboard Shortcuts</h6>
+                    <ul class="small">
+                        <li><kbd>Tab</kbd> - Navigate between score fields</li>
+                        <li><kbd>Ctrl + Enter</kbd> - Submit review (when focused)</li>
+                        <li><kbd>Esc</kbd> - Go back to list</li>
+                    </ul>
+                    
+                    <h6 class="mt-3"><i class="fas fa-flag me-2 text-danger"></i>Priority Indicators</h6>
+                    <ul class="small">
+                        <li><span class="badge bg-danger">Red</span> - New submissions (urgent)</li>
+                        <li><span class="badge bg-warning text-dark">Orange</span> - AI evaluated (review soon)</li>
+                        <li><span class="badge bg-success">Green</span> - Other pending</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Make cards clickable (already handled inline)
+    
+    // Add hover effect highlight
+    const cards = document.querySelectorAll('.attempt-card');
+    cards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.borderColor = 'var(--primary-color)';
+        });
+        card.addEventListener('mouseleave', function() {
+            this.style.borderColor = '';
+        });
+    });
+    
+    // Keyboard shortcut for ESC to go back
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            window.history.back();
+        }
+    });
+});
+</script>
+{% endblock %}

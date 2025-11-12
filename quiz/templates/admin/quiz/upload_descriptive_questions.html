@@ -1,0 +1,98 @@
+{% extends 'admin/base_site.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Upload Descriptive Questions from Word File</h1>
+    
+    <div class="card mt-4">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="mb-3">
+                    <label for="{{ form.subject.id_for_label }}" class="form-label">Subject:</label>
+                    {{ form.subject }}
+                    {% if form.subject.errors %}
+                    <div class="text-danger">{{ form.subject.errors }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.standard.id_for_label }}" class="form-label">Standard:</label>
+                    {{ form.standard }}
+                    {% if form.standard.errors %}
+                    <div class="text-danger">{{ form.standard.errors }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.file.id_for_label }}" class="form-label">Word File (.docx):</label>
+                    {{ form.file }}
+                    {% if form.file.errors %}
+                    <div class="text-danger">{{ form.file.errors }}</div>
+                    {% endif %}
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Upload and Process</button>
+                <a href="{% url 'admin:quiz_descriptivequestionupload_changelist' %}" class="btn btn-secondary">Cancel</a>
+            </form>
+            
+            <div class="mt-5">
+                <h5>Format Guidelines:</h5>
+                <div class="alert alert-info">
+                    <p><strong>Format your Word document as follows:</strong></p>
+                    <pre class="bg-white p-3 border rounded">
+Q: What is the process of photosynthesis in plants?
+Marks: 10
+Word Limit: 500
+Reference Answer: Photosynthesis is the process by which plants convert light energy into chemical energy. It occurs in chloroplasts where chlorophyll absorbs sunlight...
+Guidelines: Look for: light reactions, Calvin cycle, chlorophyll, glucose production
+---
+
+Q: Explain the impact of climate change on ecosystems.
+Marks: 15
+Word Limit: 750
+Reference Answer: Climate change significantly impacts ecosystems through rising temperatures, altered precipitation patterns...
+Guidelines: Key points: temperature rise, species migration, habitat loss, adaptation
+---
+                    </pre>
+                    
+                    <h6 class="mt-3">Important Notes:</h6>
+                    <ul>
+                        <li>Each question must start with "Q:" or "Question:"</li>
+                        <li>Separate questions with "---" (three dashes)</li>
+                        <li>Marks: Specify the maximum marks (required)</li>
+                        <li>Word Limit: Recommended word count (optional, defaults to 500)</li>
+                        <li>Reference Answer: Model answer for AI evaluation (optional but recommended)</li>
+                        <li>Guidelines: Key points for marking (optional)</li>
+                        <li>Questions will be set to active by default</li>
+                        <li>AI evaluation will be enabled by default (70% weightage)</li>
+                    </ul>
+                </div>
+                
+                <div class="mt-3">
+                    <h6>Example Questions:</h6>
+                    <div class="card">
+                        <div class="card-body">
+                            <p><strong>Short Answer (5-10 marks):</strong></p>
+                            <ul>
+                                <li>Define key concepts</li>
+                                <li>Explain processes briefly</li>
+                                <li>Compare and contrast ideas</li>
+                            </ul>
+                            
+                            <p class="mt-3"><strong>Long Answer (15-25 marks):</strong></p>
+                            <ul>
+                                <li>Analyze complex topics</li>
+                                <li>Discuss multiple perspectives</li>
+                                <li>Provide detailed explanations with examples</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

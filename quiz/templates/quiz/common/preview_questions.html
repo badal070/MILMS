@@ -1,0 +1,92 @@
+{% extends 'quiz/base.html' %}
+<!-- CORRECT -->
+{% load quiz_filters %}  <!-- Add at top of file -->
+
+
+
+
+
+{% block title %}Preview Questions{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Preview Questions</h1>
+        <p class="text-muted">{{ upload.file.name }} | {{ upload.subject.name }} | {{ upload.standard.name }}</p>
+    </div>
+    
+    <div class="card mb-4" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-md-4">
+                    <h2>{{ question_count }}</h2>
+                    <p class="mb-0">Questions Found</p>
+                </div>
+                <div class="col-md-4">
+                    <h2>{% if is_valid %}✓{% else %}✗{% endif %}</h2>
+                    <p class="mb-0">Validation</p>
+                </div>
+                <div class="col-md-4">
+                    <h2>{{ errors|length }}</h2>
+                    <p class="mb-0">Errors</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if errors %}
+    <div class="alert alert-warning">
+        <h5>⚠️ Validation Issues</h5>
+        <ul class="mb-0">
+            {% for error in errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
+    <h4 class="mb-3">Preview (First 5 Questions)</h4>
+    
+    {% for question in questions|slice:":5" %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="badge bg-primary">Q{{ forloop.counter }}</span>
+            </div>
+            <h6 class="mb-3">{{ question.question }}</h6>
+            <div class="ms-3">
+                {% for option in question.options %}
+                <div class="mb-2 p-2 rounded {% if option.is_correct %}bg-success bg-opacity-10{% else %}bg-light{% endif %}">
+                    <strong>{{ forloop.counter|option_letter }}.</strong> {{ option.text }}
+                    {% if option.is_correct %}
+                    <span class="badge bg-success ms-2">✓ Correct</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    {% if question_count > 5 %}
+    <div class="alert alert-info text-center">
+        <strong>+ {{ question_count|add:"-5" }} more questions</strong>
+    </div>
+    {% endif %}
+    
+    <div class="d-flex gap-2">
+        {% if question_count > 0 %}
+        <form method="post" action="{% url 'quiz:process_questions' upload.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success" 
+                    onclick="return confirm('Import {{ question_count }} questions?');">
+                <i class="fas fa-check me-2"></i>Import {{ question_count }} Questions
+            </button>
+        </form>
+        {% endif %}
+        <a href="{% url 'quiz:teacher_dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

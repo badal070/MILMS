@@ -268,10 +268,10 @@ class Content(models.Model):
         return self.title
 
 class QuestionUpload(models.Model):
-    """Word file upload for bulk question import"""
+    """Word/PDF file upload for bulk question import"""
     file = models.FileField(
         upload_to='question_uploads/%Y/%m/',
-        validators=[FileExtensionValidator(allowed_extensions=['docx'])]
+        validators=[FileExtensionValidator(allowed_extensions=['docx', 'pdf'])]
     )
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     standard = models.ForeignKey(Standard, on_delete=models.CASCADE)
@@ -284,6 +284,307 @@ class QuestionUpload(models.Model):
 
     class Meta:
         ordering = ['-uploaded_at']
+        verbose_name = 'Question Upload'
+        verbose_name_plural = 'Question Uploads'
 
     def __str__(self):
-        return f"{self.file.name} - {self.subject.name}"
+        return f"{self.file.name} - {self.subject.name} ({self.standard.name})"
+    
+    @property
+    def file_type(self):
+        """Get file extension"""
+        if self.file:
+            return self.file.name.split('.')[-1].upper()
+        return 'N/A'
+    
+from django.db import models
+from django.contrib.auth.models import User
+from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
+from django.utils import timezone
+
+# Add these new models to your existing models.py file
+
+class DescriptiveQuestion(models.Model):
+    """Descriptive/Essay type questions"""
+    subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='descriptive_questions')
+    standard = models.ForeignKey('Standard', on_delete=models.CASCADE, related_name='descriptive_questions')
+    institution = models.ForeignKey('Institution', on_delete=models.CASCADE, related_name='descriptive_questions', null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_descriptive_questions')
+    
+    question_text = models.TextField(help_text="Enter the descriptive question")
+    reference_answer = models.TextField(help_text="Model/Reference answer for evaluation", blank=True)
+    marking_guidelines = models.TextField(
+        blank=True,
+        help_text="Guidelines for manual marking (key points to look for)"
+    )
+    max_marks = models.IntegerField(
+        default=10,
+        validators=[MinValueValidator(1), MaxValueValidator(100)]
+    )
+    word_limit = models.IntegerField(
+        default=500,
+        validators=[MinValueValidator(50)],
+        help_text="Recommended word limit"
+    )
+    
+    # AI Evaluation settings
+    enable_ai_evaluation = models.BooleanField(
+        default=True,
+        help_text="Enable AI-powered evaluation for this question"
+    )
+    ai_evaluation_weightage = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=0.70,
+        validators=[MinValueValidator(0), MaxValueValidator(1)],
+        help_text="AI evaluation weight (0-1). Remainder will be manual review."
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Descriptive Question'
+        verbose_name_plural = 'Descriptive Questions'
+        indexes = [
+            models.Index(fields=['subject', 'standard', 'institution']),
+            models.Index(fields=['is_active', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.question_text[:60]}... ({self.max_marks} marks)"
+
+
+class DescriptiveQuiz(models.Model):
+    """Quiz containing descriptive questions"""
+    title = models.CharField(max_length=300, db_index=True)
+    description = models.TextField(blank=True)
+    subject = models.ForeignKey('Subject', on_delete=models.CASCADE, related_name='descriptive_quizzes')
+    standard = models.ForeignKey('Standard', on_delete=models.CASCADE, related_name='descriptive_quizzes')
+    institution = models.ForeignKey('Institution', on_delete=models.CASCADE, related_name='descriptive_quizzes', null=True, blank=True)
+    
+    questions = models.ManyToManyField(DescriptiveQuestion, related_name='descriptive_quizzes')
+    duration_minutes = models.IntegerField(
+        default=60,
+        validators=[MinValueValidator(1)],
+        help_text="Time allowed in minutes"
+    )
+    
+    # Evaluation settings
+    auto_evaluate = models.BooleanField(
+        default=True,
+        help_text="Automatically evaluate using AI when submitted"
+    )
+    require_manual_review = models.BooleanField(
+        default=True,
+        help_text="Require teacher review after AI evaluation"
+    )
+    
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_descriptive_quizzes')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Descriptive Quiz'
+        verbose_name_plural = 'Descriptive Quizzes'
+        indexes = [
+            models.Index(fields=['institution', 'is_active']),
+            models.Index(fields=['subject', 'standard']),
+        ]
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def total_marks(self):
+        return sum(q.max_marks for q in self.questions.all())
+
+
+class DescriptiveQuizAttempt(models.Model):
+    """Student's descriptive quiz attempt"""
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('submitted', 'Submitted'),
+        ('ai_evaluated', 'AI Evaluated'),
+        ('manually_reviewed', 'Manually Reviewed'),
+        ('finalized', 'Finalized'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='descriptive_quiz_attempts')
+    quiz = models.ForeignKey(DescriptiveQuiz, on_delete=models.CASCADE, related_name='attempts')
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', db_index=True)
+    
+    # Scoring
+    total_marks = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    ai_score = models.DecimalField(max_digits=7, decimal_places=2, default=0, null=True, blank=True)
+    manual_score = models.DecimalField(max_digits=7, decimal_places=2, default=0, null=True, blank=True)
+    final_score = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    
+    # Timestamps
+    started_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    ai_evaluated_at = models.DateTimeField(null=True, blank=True)
+    manually_reviewed_at = models.DateTimeField(null=True, blank=True)
+    finalized_at = models.DateTimeField(null=True, blank=True)
+    
+    # Review
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_descriptive_attempts'
+    )
+    teacher_comments = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-started_at']
+        verbose_name = 'Descriptive Quiz Attempt'
+        verbose_name_plural = 'Descriptive Quiz Attempts'
+        indexes = [
+            models.Index(fields=['user', '-started_at']),
+            models.Index(fields=['quiz', 'status']),
+            models.Index(fields=['status', '-submitted_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.quiz.title} - {self.status}"
+
+    @property
+    def percentage(self):
+        if self.total_marks > 0:
+            return round((self.final_score / self.total_marks) * 100, 2)
+        return 0
+
+
+class DescriptiveAnswer(models.Model):
+    """Individual descriptive answer with AI evaluation"""
+    attempt = models.ForeignKey(
+        DescriptiveQuizAttempt,
+        on_delete=models.CASCADE,
+        related_name='answers'
+    )
+    question = models.ForeignKey(DescriptiveQuestion, on_delete=models.CASCADE)
+    
+    # Student's answer
+    answer_text = models.TextField()
+    word_count = models.IntegerField(default=0)
+    
+    # AI Evaluation Results
+    ai_score = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        default=0,
+        null=True,
+        blank=True
+    )
+    ai_evaluation_data = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Complete AI evaluation response"
+    )
+    ai_feedback = models.TextField(blank=True)
+    
+    # Manual Evaluation
+    manual_score = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        default=0,
+        null=True,
+        blank=True
+    )
+    manual_feedback = models.TextField(blank=True)
+    
+    # Final Score
+    final_score = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    
+    # Evaluation details
+    spelling_score = models.DecimalField(max_digits=4, decimal_places=2, default=0, null=True, blank=True)
+    relevance_score = models.DecimalField(max_digits=4, decimal_places=2, default=0, null=True, blank=True)
+    content_score = models.DecimalField(max_digits=4, decimal_places=2, default=0, null=True, blank=True)
+    grammar_score = models.DecimalField(max_digits=4, decimal_places=2, default=0, null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['id']
+        unique_together = ['attempt', 'question']
+
+    def __str__(self):
+        return f"{self.attempt.user.username} - Q{self.question.id}"
+
+    def calculate_word_count(self):
+        """Calculate and update word count"""
+        self.word_count = len(self.answer_text.split())
+        return self.word_count
+
+
+class DescriptiveQuestionUpload(models.Model):
+    """Bulk upload descriptive questions from Word file"""
+    file = models.FileField(
+        upload_to='descriptive_uploads/%Y/%m/',
+        validators=[FileExtensionValidator(allowed_extensions=['docx'])]
+    )
+    subject = models.ForeignKey('Subject', on_delete=models.CASCADE)
+    standard = models.ForeignKey('Standard', on_delete=models.CASCADE)
+    institution = models.ForeignKey('Institution', on_delete=models.CASCADE, null=True, blank=True)
+    
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    processed = models.BooleanField(default=False)
+    questions_imported = models.IntegerField(default=0)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+        verbose_name = 'Descriptive Question Upload'
+        verbose_name_plural = 'Descriptive Question Uploads'
+
+    def __str__(self):
+        return f"{self.file.name} - {self.subject.name} ({self.questions_imported} imported)"
+
+
+class AIEvaluationLog(models.Model):
+    """Log of AI evaluation requests for monitoring and debugging"""
+    answer = models.ForeignKey(
+        DescriptiveAnswer,
+        on_delete=models.CASCADE,
+        related_name='evaluation_logs'
+    )
+    
+    api_provider = models.CharField(
+        max_length=50,
+        default='huggingface',
+        help_text="AI provider used (huggingface, openai, etc.)"
+    )
+    model_used = models.CharField(max_length=100)
+    
+    request_data = models.JSONField(help_text="Request sent to API")
+    response_data = models.JSONField(help_text="Response from API")
+    
+    execution_time = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        help_text="Time taken in seconds"
+    )
+    
+    success = models.BooleanField(default=True)
+    error_message = models.TextField(blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'AI Evaluation Log'
+        verbose_name_plural = 'AI Evaluation Logs'
+
+    def __str__(self):
+        status = "Success" if self.success else "Failed"
+        return f"{self.answer.attempt.user.username} - {status} - {self.created_at}"

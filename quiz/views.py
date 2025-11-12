@@ -7,10 +7,13 @@ from django.db.models import Q, Avg, Count, Sum
 from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.views.decorators.cache import cache_page
 from django.core.paginator import Paginator
-
+from .forms import QuestionUploadForm
+from .utils import parse_question_from_docx
+from .models import QuestionUpload
+from django.db import transaction
 from .models import (
     Quiz, QuizAttempt, Answer, Question, Subject, Standard, 
-    Content, UserProfile, User, Institution
+    Content, UserProfile, User, Institution, DescriptiveQuiz, DescriptiveQuizAttempt, DescriptiveAnswer
 )
 from .forms import ContentUploadForm
 from .utils import log_activity
@@ -376,6 +379,228 @@ def student_content(request):
     
     return render(request, 'quiz/student/content.html', context)
 
+@login_required
+@user_passes_test(is_student, login_url='quiz:dashboard')
+def student_descriptive_quizzes(request):
+    """List all available descriptive quizzes"""
+    user_profile = request.user.profile
+    
+    # Get filter parameters
+    subject_id = request.GET.get('subject', '')
+    standard_id = request.GET.get('standard', '')
+    
+    subjects = Subject.objects.all()
+    standards = Standard.objects.all()
+    
+    # Build quiz query
+    quizzes = DescriptiveQuiz.objects.filter(
+        is_active=True,
+        institution=user_profile.institution
+    ).select_related('subject', 'standard').prefetch_related('questions')
+    
+    if subject_id:
+        quizzes = quizzes.filter(subject_id=subject_id)
+    if standard_id:
+        quizzes = quizzes.filter(standard_id=standard_id)
+    
+    # Pagination
+    paginator = Paginator(quizzes, 9)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'user_profile': user_profile,
+        'page_obj': page_obj,
+        'subjects': subjects,
+        'standards': standards,
+        'selected_subject': subject_id,
+        'selected_standard': standard_id,
+    }
+    
+    return render(request, 'quiz/student/descriptive_quizzes.html', context)
+
+
+@login_required
+@user_passes_test(is_student, login_url='quiz:dashboard')
+def take_descriptive_quiz(request, quiz_id):
+    """Take descriptive quiz"""
+    quiz = get_object_or_404(
+        DescriptiveQuiz.objects.select_related('subject', 'standard').prefetch_related('questions'),
+        id=quiz_id,
+        is_active=True
+    )
+    user_profile = request.user.profile
+    
+    # Verify access
+    if quiz.institution != user_profile.institution:
+        messages.error(request, 'You do not have access to this quiz.')
+        return redirect('quiz:student_descriptive_quizzes')
+    
+    # Verify student info
+    if not user_profile.student_name or not user_profile.roll_number:
+        messages.warning(request, 'Please complete your profile first.')
+        return redirect('quiz:student_info')
+    
+    # Check for existing draft
+    existing_attempt = DescriptiveQuizAttempt.objects.filter(
+        user=request.user,
+        quiz=quiz,
+        status='draft'
+    ).first()
+    
+    if existing_attempt:
+        attempt = existing_attempt
+    else:
+        # Create new attempt
+        attempt = DescriptiveQuizAttempt.objects.create(
+            user=request.user,
+            quiz=quiz,
+            total_marks=quiz.total_marks
+        )
+        
+        # Create answer placeholders
+        for question in quiz.questions.all():
+            DescriptiveAnswer.objects.create(
+                attempt=attempt,
+                question=question,
+                answer_text=''
+            )
+    
+    if request.method == 'POST':
+        action = request.POST.get('action', 'save')
+        
+        # Save all answers
+        for question in quiz.questions.all():
+            answer_key = f'answer_{question.id}'
+            answer_text = request.POST.get(answer_key, '').strip()
+            
+            answer, created = DescriptiveAnswer.objects.get_or_create(
+                attempt=attempt,
+                question=question,
+                defaults={'answer_text': answer_text}
+            )
+            
+            if not created:
+                answer.answer_text = answer_text
+                answer.calculate_word_count()
+                answer.save()
+        
+        if action == 'submit':
+            # Submit the attempt
+            attempt.status = 'submitted'
+            attempt.submitted_at = timezone.now()
+            attempt.save()
+            
+            # Trigger AI evaluation if enabled
+            if quiz.auto_evaluate:
+                try:
+                    api_key = os.getenv('HUGGINGFACE_API_KEY')
+                    if api_key:
+                        for answer in attempt.answers.all():
+                            if answer.answer_text and answer.question.enable_ai_evaluation:
+                                result = evaluate_descriptive_answer(
+                                    api_key=api_key,
+                                    question=answer.question.question_text,
+                                    user_answer=answer.answer_text,
+                                    standard_answer=answer.question.reference_answer,
+                                    max_score=answer.question.max_marks
+                                )
+                                
+                                answer.ai_score = result['overall_score']
+                                answer.ai_evaluation_data = result
+                                answer.ai_feedback = result['feedback']
+                                answer.spelling_score = result['spelling_analysis'].get('spelling_score', 0)
+                                answer.relevance_score = result['relevance_analysis'].get('relevance_score', 0)
+                                answer.content_score = result['content_analysis'].get('content_score', 0)
+                                answer.grammar_score = result['grammar_analysis'].get('grammar_score', 0)
+                                answer.final_score = answer.ai_score
+                                answer.save()
+                        
+                        attempt.ai_score = sum(a.ai_score or 0 for a in attempt.answers.all())
+                        attempt.final_score = attempt.ai_score
+                        attempt.status = 'ai_evaluated'
+                        attempt.ai_evaluated_at = timezone.now()
+                        attempt.save()
+                        
+                        messages.success(request, 'Quiz submitted and AI evaluation completed!')
+                    else:
+                        messages.success(request, 'Quiz submitted! Awaiting teacher review.')
+                except Exception as e:
+                    messages.warning(request, f'Quiz submitted! AI evaluation will be done later. ({str(e)})')
+            else:
+                messages.success(request, 'Quiz submitted! Awaiting teacher review.')
+            
+            log_activity(request.user, 'quiz_attempt', f'Completed descriptive: {quiz.title}', request)
+            return redirect('quiz:descriptive_quiz_results', attempt_id=attempt.id)
+        
+        else:
+            # Just save as draft
+            messages.success(request, 'Progress saved! You can continue later.')
+    
+    questions = quiz.questions.all()
+    answers = {a.question_id: a for a in attempt.answers.all()}
+    
+    context = {
+        'user_profile': user_profile,
+        'quiz': quiz,
+        'attempt': attempt,
+        'questions': questions,
+        'answers': answers,
+    }
+    
+    return render(request, 'quiz/student/take_descriptive_quiz.html', context)
+
+
+@login_required
+@user_passes_test(is_student, login_url='quiz:dashboard')
+def descriptive_quiz_results(request, attempt_id):
+    """View descriptive quiz results"""
+    attempt = get_object_or_404(
+        DescriptiveQuizAttempt.objects.select_related(
+            'quiz__subject', 'quiz__standard'
+        ),
+        id=attempt_id,
+        user=request.user
+    )
+    
+    if attempt.status == 'draft':
+        messages.warning(request, 'This attempt has not been submitted yet.')
+        return redirect('quiz:take_descriptive_quiz', quiz_id=attempt.quiz.id)
+    
+    answers = attempt.answers.select_related('question').all()
+    
+    context = {
+        'user_profile': request.user.profile,
+        'attempt': attempt,
+        'answers': answers,
+    }
+    
+    return render(request, 'quiz/student/descriptive_results.html', context)
+
+
+@login_required
+@user_passes_test(is_student, login_url='quiz:dashboard')
+def my_descriptive_attempts(request):
+    """View all descriptive quiz attempts"""
+    user_profile = request.user.profile
+    
+    attempts = DescriptiveQuizAttempt.objects.filter(
+        user=request.user
+    ).exclude(
+        status='draft'
+    ).select_related('quiz__subject', 'quiz__standard').order_by('-submitted_at')
+    
+    # Pagination
+    paginator = Paginator(attempts, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'user_profile': user_profile,
+        'page_obj': page_obj,
+    }
+    
+    return render(request, 'quiz/student/my_descriptive_attempts.html', context)
 
 # ======================== TEACHER VIEWS ========================
 
@@ -498,6 +723,186 @@ def teacher_content(request):
     
     return render(request, 'quiz/teacher/content.html', context)
 
+
+@login_required
+@user_passes_test(is_teacher, login_url='quiz:dashboard')
+def teacher_descriptive_quizzes(request):
+    """View teacher's descriptive quizzes"""
+    user_profile = request.user.profile
+    
+    quizzes = DescriptiveQuiz.objects.filter(
+        created_by=request.user,
+        institution=user_profile.institution
+    ).select_related('subject', 'standard').annotate(
+        total_attempts=Count('attempts')
+    ).order_by('-created_at')
+    
+    context = {
+        'user_profile': user_profile,
+        'quizzes': quizzes,
+    }
+    
+    return render(request, 'quiz/teacher/descriptive_quizzes.html', context)
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='quiz:dashboard')
+def review_pending_attempts(request):
+    """View attempts pending review"""
+    user_profile = request.user.profile
+    
+    # Get attempts needing review (submitted or ai_evaluated)
+    attempts = DescriptiveQuizAttempt.objects.filter(
+        quiz__institution=user_profile.institution,
+        quiz__created_by=request.user,
+        status__in=['submitted', 'ai_evaluated']
+    ).select_related(
+        'user__profile', 'quiz'
+    ).order_by('-submitted_at')
+    
+    # Pagination
+    paginator = Paginator(attempts, 15)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'user_profile': user_profile,
+        'page_obj': page_obj,
+    }
+    
+    return render(request, 'quiz/teacher/review_pending_attempts.html', context)
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='quiz:dashboard')
+def review_descriptive_attempt(request, attempt_id):
+    """Review individual descriptive attempt"""
+    attempt = get_object_or_404(
+        DescriptiveQuizAttempt.objects.select_related('quiz', 'user__profile'),
+        id=attempt_id
+    )
+    
+    user_profile = request.user.profile
+    
+    # Verify teacher has access
+    if attempt.quiz.created_by != request.user:
+        messages.error(request, 'You do not have permission to review this attempt.')
+        return redirect('quiz:teacher_dashboard')
+    
+    answers = attempt.answers.select_related('question').all()
+    
+    if request.method == 'POST':
+        # Process manual scores
+        for answer in answers:
+            score_key = f'score_{answer.id}'
+            feedback_key = f'feedback_{answer.id}'
+            
+            if score_key in request.POST:
+                try:
+                    manual_score = float(request.POST[score_key])
+                    
+                    # Validate score
+                    if manual_score < 0 or manual_score > answer.question.max_marks:
+                        messages.error(
+                            request,
+                            f'Invalid score for question {answer.question.id}. Must be between 0 and {answer.question.max_marks}'
+                        )
+                        continue
+                    
+                    answer.manual_score = manual_score
+                    answer.manual_feedback = request.POST.get(feedback_key, '')
+                    
+                    # Calculate final score
+                    if answer.ai_score and answer.question.enable_ai_evaluation:
+                        weight = float(answer.question.ai_evaluation_weightage)
+                        answer.final_score = (
+                            answer.ai_score * weight +
+                            manual_score * (1 - weight)
+                        )
+                    else:
+                        answer.final_score = manual_score
+                    
+                    answer.save()
+                except ValueError:
+                    messages.error(request, f'Invalid score value for question {answer.question.id}')
+        
+        # Update attempt
+        attempt.manual_score = sum(a.manual_score or 0 for a in answers)
+        attempt.final_score = sum(a.final_score for a in answers)
+        attempt.status = 'manually_reviewed'
+        attempt.reviewed_by = request.user
+        attempt.manually_reviewed_at = timezone.now()
+        attempt.teacher_comments = request.POST.get('teacher_comments', '')
+        attempt.save()
+        
+        log_activity(
+            request.user,
+            'quiz_attempt',
+            f'Reviewed descriptive attempt: {attempt.user.username} - {attempt.quiz.title}',
+            request
+        )
+        
+        messages.success(request, f'Review saved for {attempt.user.profile.display_name}!')
+        return redirect('quiz:review_pending_attempts')
+    
+    context = {
+        'user_profile': user_profile,
+        'attempt': attempt,
+        'answers': answers,
+    }
+    
+    return render(request, 'quiz/teacher/review_descriptive_attempt.html', context)
+
+
+@login_required
+@user_passes_test(is_teacher, login_url='quiz:dashboard')
+def descriptive_quiz_analytics(request, quiz_id):
+    """View analytics for a specific descriptive quiz"""
+    quiz = get_object_or_404(
+        DescriptiveQuiz,
+        id=quiz_id,
+        created_by=request.user
+    )
+    
+    attempts = DescriptiveQuizAttempt.objects.filter(
+        quiz=quiz
+    ).exclude(status='draft').select_related('user__profile')
+    
+    # Calculate statistics
+    stats = {
+        'total_attempts': attempts.count(),
+        'submitted': attempts.filter(status='submitted').count(),
+        'ai_evaluated': attempts.filter(status='ai_evaluated').count(),
+        'manually_reviewed': attempts.filter(status='manually_reviewed').count(),
+        'finalized': attempts.filter(status='finalized').count(),
+        'avg_score': attempts.aggregate(Avg('final_score'))['final_score__avg'] or 0,
+    }
+    
+    # Question-wise analysis
+    question_stats = []
+    for question in quiz.questions.all():
+        answers = DescriptiveAnswer.objects.filter(
+            attempt__quiz=quiz,
+            question=question
+        ).exclude(attempt__status='draft')
+        
+        question_stats.append({
+            'question': question,
+            'total_answers': answers.count(),
+            'avg_ai_score': answers.aggregate(Avg('ai_score'))['ai_score__avg'] or 0,
+            'avg_manual_score': answers.aggregate(Avg('manual_score'))['manual_score__avg'] or 0,
+            'avg_final_score': answers.aggregate(Avg('final_score'))['final_score__avg'] or 0,
+        })
+    
+    context = {
+        'user_profile': request.user.profile,
+        'quiz': quiz,
+        'stats': stats,
+        'question_stats': question_stats,
+        'attempts': attempts[:10],  # Recent 10
+    }
+    
+    return render(request, 'quiz/teacher/descriptive_quiz_analytics.html', context)
 
 # ======================== PRINCIPAL VIEWS ========================
 
@@ -724,6 +1129,7 @@ def content_upload(request):
     return render(request, 'quiz/common/content_upload.html', context)
 
 
+# Import for view_count update
 # ======================== HELPER/UTILITY VIEWS ========================
 
 @login_required
@@ -752,6 +1158,224 @@ def profile_view(request):
     
     return render(request, 'quiz/common/profile.html', context)
 
+@login_required
+@user_passes_test(is_staff_or_above, login_url='quiz:dashboard')
+def upload_questions_standalone(request):
+    """Standalone question upload view (accessible outside admin)"""
+    user_profile = request.user.profile
+    
+    # Check permission
+    if user_profile.role == 'teacher' and not user_profile.can_create_quiz:
+        messages.error(request, 'You do not have permission to upload questions.')
+        return redirect('quiz:teacher_dashboard')
+    
+    if request.method == 'POST':
+        form = QuestionUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                upload = form.save(commit=False)
+                upload.uploaded_by = request.user
+                upload.institution = user_profile.institution
+                upload.save()
+                
+                log_activity(request.user, 'content_upload', 
+                           f'Uploaded question file: {upload.file.name}', request)
+                
+                messages.success(request, 'File uploaded! Redirecting to preview...')
+                return redirect('quiz:preview_questions', upload_id=upload.id)
+            except Exception as e:
+                messages.error(request, f'Upload failed: {str(e)}')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = QuestionUploadForm()
+    
+    context = {
+        'user_profile': user_profile,
+        'form': form,
+    }
+    return render(request, 'quiz/common/upload_questions.html', context)
 
+
+@login_required
+@user_passes_test(is_staff_or_above, login_url='quiz:dashboard')
+def preview_questions_standalone(request, upload_id):
+    """Preview questions before importing (standalone)"""
+    from .utils import parse_question_from_docx, parse_question_from_pdf, validate_questions, preview_parsed_questions
+    
+    user_profile = request.user.profile
+    upload = get_object_or_404(QuestionUpload, id=upload_id)
+    
+    # Verify access
+    if not request.user.is_superuser:
+        if upload.institution != user_profile.institution:
+            messages.error(request, 'Access denied.')
+            return redirect('quiz:teacher_dashboard')
+    
+    if upload.processed:
+        messages.info(request, 'This file has already been processed.')
+        return redirect('quiz:teacher_dashboard')
+    
+    try:
+        file_ext = upload.file.name.split('.')[-1].lower()
+        
+        if file_ext == 'docx':
+            questions = parse_question_from_docx(upload.file.path)
+        elif file_ext == 'pdf':
+            questions = parse_question_from_pdf(upload.file.path)
+        else:
+            raise ValueError(f"Unsupported file type: {file_ext}")
+        
+        is_valid, errors = validate_questions(questions)
+        preview_text = preview_parsed_questions(questions, max_questions=5)
+        
+        context = {
+            'user_profile': user_profile,
+            'upload': upload,
+            'questions': questions,
+            'question_count': len(questions),
+            'is_valid': is_valid,
+            'errors': errors,
+            'preview_text': preview_text,
+        }
+        
+        return render(request, 'quiz/common/preview_questions.html', context)
+        
+    except Exception as e:
+        upload.error_message = str(e)
+        upload.processed = True
+        upload.save()
+        messages.error(request, f'Error parsing file: {str(e)}')
+        return redirect('quiz:teacher_dashboard')
+
+
+@login_required
+@transaction.atomic
+@user_passes_test(is_staff_or_above, login_url='quiz:dashboard')
+def process_questions_standalone(request, upload_id):
+    """Process and import questions (standalone)"""
+    from .utils import parse_question_from_docx, parse_question_from_pdf
+    
+    user_profile = request.user.profile
+    upload = get_object_or_404(QuestionUpload, id=upload_id)
+    
+    # Verify access
+    if not request.user.is_superuser:
+        if upload.institution != user_profile.institution:
+            messages.error(request, 'Access denied.')
+            return redirect('quiz:teacher_dashboard')
+    
+    if upload.processed:
+        messages.warning(request, 'This file has already been processed.')
+        return redirect('quiz:teacher_dashboard')
+    
+    try:
+        file_ext = upload.file.name.split('.')[-1].lower()
+        
+        if file_ext == 'docx':
+            questions_data = parse_question_from_docx(upload.file.path)
+        elif file_ext == 'pdf':
+            questions_data = parse_question_from_pdf(upload.file.path)
+        else:
+            raise ValueError(f"Unsupported file type: {file_ext}")
+        
+        imported_count = 0
+        skipped_count = 0
+        
+        for q_data in questions_data:
+            try:
+                correct_option = None
+                options_dict = {'A': '', 'B': '', 'C': '', 'D': ''}
+                
+                for idx, opt in enumerate(q_data['options'][:4]):
+                    option_letter = chr(65 + idx)
+                    options_dict[option_letter] = opt['text'][:500]
+                    if opt['is_correct']:
+                        correct_option = option_letter
+                
+                if correct_option and q_data['question']:
+                    Question.objects.create(
+                        subject=upload.subject,
+                        standard=upload.standard,
+                        institution=upload.institution,
+                        created_by=request.user,
+                        question_text=q_data['question'][:1000],
+                        option_a=options_dict['A'],
+                        option_b=options_dict['B'],
+                        option_c=options_dict['C'],
+                        option_d=options_dict['D'],
+                        correct_answer=correct_option
+                    )
+                    imported_count += 1
+                else:
+                    skipped_count += 1
+            except Exception:
+                skipped_count += 1
+        
+        upload.processed = True
+        upload.questions_imported = imported_count
+        if skipped_count > 0:
+            upload.error_message = f"Skipped {skipped_count} questions due to errors"
+        upload.save()
+        
+        log_activity(request.user, 'quiz_create',
+                   f'Imported {imported_count} questions from {upload.file.name}', request)
+        
+        if imported_count > 0:
+            messages.success(request, f'Successfully imported {imported_count} questions!')
+        else:
+            messages.error(request, 'No questions were imported.')
+        
+        return redirect('quiz:teacher_dashboard')
+        
+    except Exception as e:
+        upload.processed = True
+        upload.error_message = str(e)
+        upload.save()
+        messages.error(request, f'Import failed: {str(e)}')
+        return redirect('quiz:teacher_dashboard')
 # Import for view_count update
 from django.db import models
+
+
+
+from .descriptive_evaluation import evaluate_descriptive_answer
+from .utils import log_activity
+
+@login_required
+def save_descriptive_progress(request):
+    """AJAX endpoint to save progress without submitting"""
+    if request.method == 'POST':
+        attempt_id = request.POST.get('attempt_id')
+        question_id = request.POST.get('question_id')
+        answer_text = request.POST.get('answer_text', '')
+        
+        try:
+            attempt = DescriptiveQuizAttempt.objects.get(
+                id=attempt_id,
+                user=request.user,
+                status='draft'
+            )
+            
+            answer = DescriptiveAnswer.objects.get(
+                attempt=attempt,
+                question_id=question_id
+            )
+            
+            answer.answer_text = answer_text
+            answer.calculate_word_count()
+            answer.save()
+            
+            return JsonResponse({
+                'success': True,
+                'word_count': answer.word_count,
+                'message': 'Progress saved'
+            })
+        
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=400)
+    
+    return JsonResponse({'success': False}, status=400)

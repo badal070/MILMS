@@ -1,0 +1,229 @@
+{% extends 'admin/base_site.html' %}
+{% load static %}
+
+{% block extrastyle %}
+<style>
+    .review-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .answer-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .answer-text {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 6px;
+        white-space: pre-wrap;
+        line-height: 1.8;
+    }
+    
+    .scoring-section {
+        background: #e8f4f8;
+        padding: 15px;
+        border-radius: 6px;
+        margin-top: 15px;
+    }
+    
+    .ai-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin: 15px 0;
+    }
+    
+    .ai-metric {
+        text-align: center;
+        padding: 10px;
+        background: white;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+    }
+    
+    .ai-metric .value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #417690;
+    }
+    
+    .ai-metric .label {
+        font-size: 0.85rem;
+        color: #666;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="review-container">
+    <h1>Review Descriptive Quiz Attempt</h1>
+    
+    <!-- Student & Quiz Info -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <strong>Student:</strong><br>
+                    {{ attempt.user.profile.display_name }}<br>
+                    <small class="text-muted">{{ attempt.user.username }}</small>
+                </div>
+                <div class="col-md-3">
+                    <strong>Roll Number:</strong><br>
+                    {{ attempt.user.profile.roll_number }}
+                </div>
+                <div class="col-md-4">
+                    <strong>Quiz:</strong><br>
+                    {{ attempt.quiz.title }}
+                </div>
+                <div class="col-md-2">
+                    <strong>Total Marks:</strong><br>
+                    <span class="badge badge-primary">{{ attempt.total_marks }}</span>
+                </div>
+            </div>
+            
+            {% if attempt.ai_score %}
+            <hr>
+            <div class="row">
+                <div class="col-md-4">
+                    <strong>AI Score:</strong> {{ attempt.ai_score }}
+                </div>
+                <div class="col-md-4">
+                    <strong>Status:</strong> {{ attempt.get_status_display }}
+                </div>
+                <div class="col-md-4">
+                    <strong>Submitted:</strong> {{ attempt.submitted_at|date:"M d, Y H:i" }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Review Form -->
+    <form method="post">
+        {% csrf_token %}
+        
+        {% for answer in answers %}
+        <div class="answer-card">
+            <h4>
+                Question {{ forloop.counter }}
+                <span class="badge badge-success float-right">{{ answer.question.max_marks }} marks</span>
+            </h4>
+            
+            <p class="font-weight-bold">{{ answer.question.question_text }}</p>
+            
+            {% if answer.question.marking_guidelines %}
+            <div class="alert alert-info">
+                <strong>Marking Guidelines:</strong> {{ answer.question.marking_guidelines }}
+            </div>
+            {% endif %}
+            
+            <!-- Student Answer -->
+            <h5 class="mt-3">Student's Answer ({{ answer.word_count }} words):</h5>
+            <div class="answer-text">{{ answer.answer_text }}</div>
+            
+            <!-- AI Evaluation -->
+            {% if answer.ai_score %}
+            <div class="mt-3">
+                <h5>AI Evaluation:</h5>
+                
+                <div class="ai-metrics">
+                    <div class="ai-metric">
+                        <div class="value">{{ answer.spelling_score|floatformat:1 }}</div>
+                        <div class="label">Spelling</div>
+                    </div>
+                    <div class="ai-metric">
+                        <div class="value">{{ answer.relevance_score|floatformat:1 }}</div>
+                        <div class="label">Relevance</div>
+                    </div>
+                    <div class="ai-metric">
+                        <div class="value">{{ answer.content_score|floatformat:1 }}</div>
+                        <div class="label">Content</div>
+                    </div>
+                    <div class="ai-metric">
+                        <div class="value">{{ answer.grammar_score|floatformat:1 }}</div>
+                        <div class="label">Grammar</div>
+                    </div>
+                </div>
+                
+                {% if answer.ai_feedback %}
+                <div class="alert alert-warning">
+                    <strong>AI Feedback:</strong> {{ answer.ai_feedback }}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Reference Answer -->
+            {% if answer.question.reference_answer %}
+            <div class="mt-3">
+                <details>
+                    <summary><strong>Reference Answer</strong></summary>
+                    <div class="answer-text mt-2">{{ answer.question.reference_answer }}</div>
+                </details>
+            </div>
+            {% endif %}
+            
+            <!-- Manual Scoring -->
+            <div class="scoring-section">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label><strong>Your Score:</strong></label>
+                        <input 
+                            type="number" 
+                            name="score_{{ answer.id }}" 
+                            class="form-control"
+                            min="0" 
+                            max="{{ answer.question.max_marks }}"
+                            step="0.5"
+                            value="{{ answer.manual_score|default:'' }}"
+                            required
+                        >
+                        <small>Max: {{ answer.question.max_marks }}</small>
+                    </div>
+                    <div class="col-md-9">
+                        <label><strong>Your Feedback:</strong></label>
+                        <textarea 
+                            name="feedback_{{ answer.id }}"
+                            class="form-control"
+                            rows="2"
+                        >{{ answer.manual_feedback }}</textarea>
+                    </div>
+                </div>
+                
+                {% if answer.ai_score %}
+                <small class="text-muted d-block mt-2">
+                    Note: Final score = (AI Score × {{ answer.question.ai_evaluation_weightage|floatformat:2 }}) + (Your Score × {{ answer.question.ai_evaluation_weightage|subtract:1|mul:-1|floatformat:2 }})
+                </small>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        
+        <!-- Overall Comments -->
+        <div class="card">
+            <div class="card-body">
+                <h5>Overall Comments for Student:</h5>
+                <textarea 
+                    name="teacher_comments" 
+                    class="form-control" 
+                    rows="4"
+                >{{ attempt.teacher_comments }}</textarea>
+            </div>
+        </div>
+        
+        <!-- Submit -->
+        <div class="text-center mt-4">
+            <button type="submit" class="btn btn-success btn-lg">
+                Save Review & Mark as Reviewed
+            </button>
+            <a href="{% url 'admin:quiz_descriptivequizattempt_changelist' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

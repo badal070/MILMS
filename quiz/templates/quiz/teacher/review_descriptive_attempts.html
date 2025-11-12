@@ -1,0 +1,318 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Review Attempt{% endblock %}
+
+{% block extra_css %}
+<style>
+    .review-card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .answer-section {
+        background: #f9fafb;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+    
+    .scoring-input {
+        max-width: 150px;
+    }
+    
+    .ai-scores {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .ai-score-item {
+        text-align: center;
+        padding: 1rem;
+        background: #f3f4f6;
+        border-radius: 8px;
+    }
+    
+    .sticky-review-bar {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        padding: 1rem;
+        margin-bottom: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Sticky Header -->
+    <div class="sticky-review-bar">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0">
+                    Reviewing: {{ attempt.user.profile.display_name }}
+                </h5>
+                <small class="text-muted">
+                    {{ attempt.quiz.title }} | Submitted: {{ attempt.submitted_at|date:"M d, Y H:i" }}
+                </small>
+            </div>
+            <div>
+                <button type="button" class="btn btn-outline-secondary" onclick="window.history.back()">
+                    <i class="fas fa-arrow-left me-2"></i>Back
+                </button>
+                <button type="submit" form="reviewForm" class="btn btn-success">
+                    <i class="fas fa-check me-2"></i>Save Review
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Student Info -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <strong>Student:</strong><br>
+                    {{ attempt.user.profile.display_name }}
+                </div>
+                <div class="col-md-3">
+                    <strong>Roll Number:</strong><br>
+                    {{ attempt.user.profile.roll_number }}
+                </div>
+                <div class="col-md-3">
+                    <strong>Quiz:</strong><br>
+                    {{ attempt.quiz.title }}
+                </div>
+                <div class="col-md-3">
+                    <strong>Total Marks:</strong><br>
+                    <span class="badge bg-primary">{{ attempt.total_marks }}</span>
+                </div>
+            </div>
+            
+            {% if attempt.ai_score %}
+            <hr>
+            <div class="row">
+                <div class="col-md-4">
+                    <strong>AI Score:</strong>
+                    <span class="badge bg-warning text-dark">{{ attempt.ai_score }}</span>
+                </div>
+                <div class="col-md-4">
+                    <strong>Status:</strong>
+                    <span class="badge bg-info">{{ attempt.get_status_display }}</span>
+                </div>
+                <div class="col-md-4">
+                    <strong>AI Evaluated:</strong><br>
+                    <small>{{ attempt.ai_evaluated_at|date:"M d, Y H:i" }}</small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Review Form -->
+    <form method="post" id="reviewForm">
+        {% csrf_token %}
+        
+        {% for answer in answers %}
+        <div class="review-card">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <h5>
+                    <span class="badge bg-primary me-2">Q{{ forloop.counter }}</span>
+                    {{ answer.question.question_text }}
+                </h5>
+                <span class="badge bg-success">Max: {{ answer.question.max_marks }} marks</span>
+            </div>
+            
+            <!-- Marking Guidelines -->
+            {% if answer.question.marking_guidelines %}
+            <div class="alert alert-light">
+                <strong><i class="fas fa-list-check me-2"></i>Marking Guidelines:</strong><br>
+                {{ answer.question.marking_guidelines }}
+            </div>
+            {% endif %}
+            
+            <!-- Student's Answer -->
+            <div class="answer-section">
+                <div class="d-flex justify-content-between mb-2">
+                    <strong><i class="fas fa-user me-2"></i>Student's Answer:</strong>
+                    <span class="badge bg-secondary">{{ answer.word_count }} words</span>
+                </div>
+                <p style="white-space: pre-wrap; line-height: 1.8;">{{ answer.answer_text }}</p>
+            </div>
+            
+            <!-- AI Evaluation Results -->
+            {% if answer.ai_score %}
+            <div class="mt-3">
+                <h6><i class="fas fa-robot me-2"></i>AI Evaluation Results</h6>
+                
+                <div class="ai-scores">
+                    <div class="ai-score-item">
+                        <div class="fw-bold text-primary">{{ answer.spelling_score|floatformat:1 }}/10</div>
+                        <small>Spelling</small>
+                    </div>
+                    <div class="ai-score-item">
+                        <div class="fw-bold text-success">{{ answer.relevance_score|floatformat:1 }}/10</div>
+                        <small>Relevance</small>
+                    </div>
+                    <div class="ai-score-item">
+                        <div class="fw-bold text-warning">{{ answer.content_score|floatformat:1 }}/10</div>
+                        <small>Content</small>
+                    </div>
+                    <div class="ai-score-item">
+                        <div class="fw-bold text-info">{{ answer.grammar_score|floatformat:1 }}/10</div>
+                        <small>Grammar</small>
+                    </div>
+                </div>
+                
+                {% if answer.ai_feedback %}
+                <div class="alert alert-info">
+                    <strong>AI Feedback:</strong> {{ answer.ai_feedback }}
+                </div>
+                {% endif %}
+                
+                <div class="alert alert-warning">
+                    <strong>AI Score:</strong> {{ answer.ai_score }} / {{ answer.question.max_marks }}
+                    {% if answer.question.ai_evaluation_weightage %}
+                    ({{ answer.question.ai_evaluation_weightage|floatformat:0|mul:100 }}% weightage)
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Reference Answer -->
+            {% if answer.question.reference_answer %}
+            <div class="mt-3">
+                <details>
+                    <summary class="fw-semibold mb-2" style="cursor: pointer;">
+                        <i class="fas fa-book me-2"></i>View Reference Answer
+                    </summary>
+                    <div class="answer-section">
+                        <p style="white-space: pre-wrap;">{{ answer.question.reference_answer }}</p>
+                    </div>
+                </details>
+            </div>
+            {% endif %}
+            
+            <!-- Manual Scoring -->
+            <div class="mt-4 p-3 bg-light rounded">
+                <div class="row align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">
+                            <i class="fas fa-star me-2"></i>Your Score
+                        </label>
+                        <input 
+                            type="number" 
+                            name="score_{{ answer.id }}" 
+                            class="form-control scoring-input"
+                            min="0" 
+                            max="{{ answer.question.max_marks }}"
+                            step="0.5"
+                            value="{{ answer.manual_score|default:'' }}"
+                            required
+                            placeholder="0.0"
+                        >
+                        <small class="text-muted">Max: {{ answer.question.max_marks }}</small>
+                    </div>
+                    <div class="col-md-9">
+                        <label class="form-label fw-semibold">
+                            <i class="fas fa-comment-dots me-2"></i>Your Feedback
+                        </label>
+                        <textarea 
+                            name="feedback_{{ answer.id }}"
+                            class="form-control"
+                            rows="2"
+                            placeholder="Provide specific feedback for the student..."
+                        >{{ answer.manual_feedback }}</textarea>
+                    </div>
+                </div>
+                
+                {% if answer.ai_score and answer.question.enable_ai_evaluation %}
+                <div class="alert alert-info mt-3 mb-0">
+                    <small>
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Note:</strong> Final score will be calculated as: 
+                        (AI Score × {{ answer.question.ai_evaluation_weightage|floatformat:2 }}) + 
+                        (Your Score × {{ answer.question.ai_evaluation_weightage|floatformat:2|subtract:1|mul:-1 }})
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        
+        <!-- Overall Comments -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-comment me-2"></i>Overall Comments</h5>
+            </div>
+            <div class="card-body">
+                <textarea 
+                    name="teacher_comments" 
+                    class="form-control" 
+                    rows="4"
+                    placeholder="Provide overall feedback and suggestions for improvement..."
+                >{{ attempt.teacher_comments }}</textarea>
+            </div>
+        </div>
+        
+        <!-- Submit Review -->
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <button type="submit" class="btn btn-success btn-lg px-5">
+                    <i class="fas fa-check-circle me-2"></i>Save Review & Mark as Reviewed
+                </button>
+                <p class="text-muted mt-3 mb-0">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Student will be able to view your feedback after submission
+                </p>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('reviewForm');
+    const scoreInputs = form.querySelectorAll('input[type="number"]');
+    
+    // Validate scores before submission
+    form.addEventListener('submit', function(e) {
+        let isValid = true;
+        
+        scoreInputs.forEach(input => {
+            const value = parseFloat(input.value);
+            const max = parseFloat(input.max);
+            
+            if (isNaN(value) || value < 0 || value > max) {
+                isValid = false;
+                input.classList.add('is-invalid');
+            } else {
+                input.classList.remove('is-invalid');
+            }
+        });
+        
+        if (!isValid) {
+            e.preventDefault();
+            alert('Please enter valid scores for all questions (between 0 and max marks).');
+        }
+    });
+    
+    // Auto-calculate total
+    let totalScore = 0;
+    scoreInputs.forEach(input => {
+        input.addEventListener('input', function() {
+            const value = parseFloat(this.value) || 0;
+            console.log('Score entered:', value);
+        });
+    });
+});
+</script>
+{% endblock %}

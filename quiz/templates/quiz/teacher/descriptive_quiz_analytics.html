@@ -1,0 +1,405 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}My Descriptive Quiz Attempts{% endblock %}
+
+{% block extra_css %}
+<style>
+    .attempt-timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+    
+    .attempt-timeline::before {
+        content: '';
+        position: absolute;
+        left: 10px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: linear-gradient(to bottom, #4f46e5, #06b6d4);
+    }
+    
+    .attempt-item {
+        position: relative;
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: all 0.3s;
+    }
+    
+    .attempt-item:hover {
+        transform: translateX(8px);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    }
+    
+    .attempt-item::before {
+        content: '';
+        position: absolute;
+        left: -24px;
+        top: 24px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: white;
+        border: 3px solid #4f46e5;
+        z-index: 1;
+    }
+    
+    .score-circle {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #4f46e5, #06b6d4);
+        color: white;
+        font-weight: 700;
+    }
+    
+    .score-circle .score {
+        font-size: 1.5rem;
+        line-height: 1;
+    }
+    
+    .score-circle .total {
+        font-size: 0.75rem;
+        opacity: 0.9;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="page-title">
+                    <i class="fas fa-history me-2"></i>My Descriptive Quiz Attempts
+                </h1>
+                <p class="text-muted mb-0">Track your performance and review feedback</p>
+            </div>
+            <div>
+                <a href="{% url 'quiz:student_descriptive_quizzes' %}" class="btn btn-primary">
+                    <i class="fas fa-pen-fancy me-2"></i>Take More Quizzes
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Summary Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-clipboard-list fa-2x text-primary mb-2"></i>
+                    <div class="stat-value">{{ page_obj.paginator.count }}</div>
+                    <div class="stat-label">Total Attempts</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: var(--success-color);">
+                <div class="card-body text-center">
+                    <i class="fas fa-trophy fa-2x text-success mb-2"></i>
+                    <div class="stat-value" style="color: var(--success-color);">
+                        {% if page_obj %}{{ page_obj.0.final_score|default:"0" }}{% else %}0{% endif %}
+                    </div>
+                    <div class="stat-label">Best Score</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: var(--warning-color);">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line fa-2x text-warning mb-2"></i>
+                    <div class="stat-value" style="color: var(--warning-color);">
+                        75%
+                    </div>
+                    <div class="stat-label">Average %</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: var(--secondary-color);">
+                <div class="card-body text-center">
+                    <i class="fas fa-clock fa-2x text-info mb-2"></i>
+                    <div class="stat-value" style="color: var(--secondary-color);">
+                        {% for attempt in page_obj %}
+                            {% if attempt.status in 'submitted,ai_evaluated' %}1{% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="stat-label">Pending Review</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filter Options -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Filter by Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Attempts</option>
+                        <option value="submitted" {% if request.GET.status == 'submitted' %}selected{% endif %}>
+                            Awaiting Review
+                        </option>
+                        <option value="ai_evaluated" {% if request.GET.status == 'ai_evaluated' %}selected{% endif %}>
+                            AI Evaluated
+                        </option>
+                        <option value="manually_reviewed" {% if request.GET.status == 'manually_reviewed' %}selected{% endif %}>
+                            Reviewed by Teacher
+                        </option>
+                        <option value="finalized" {% if request.GET.status == 'finalized' %}selected{% endif %}>
+                            Finalized
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Sort By</label>
+                    <select name="sort" class="form-select">
+                        <option value="-submitted_at">Most Recent</option>
+                        <option value="submitted_at" {% if request.GET.sort == 'submitted_at' %}selected{% endif %}>
+                            Oldest First
+                        </option>
+                        <option value="-final_score" {% if request.GET.sort == '-final_score' %}selected{% endif %}>
+                            Highest Score
+                        </option>
+                        <option value="final_score" {% if request.GET.sort == 'final_score' %}selected{% endif %}>
+                            Lowest Score
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter me-2"></i>Apply Filters
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Attempts Timeline -->
+    {% if page_obj %}
+    <div class="attempt-timeline">
+        {% for attempt in page_obj %}
+        <div class="attempt-item">
+            <div class="row align-items-center">
+                <!-- Score Circle -->
+                <div class="col-md-2 text-center">
+                    <div class="score-circle mx-auto {% if attempt.status == 'finalized' %}{% elif attempt.status in 'submitted,ai_evaluated' %}opacity-50{% endif %}">
+                        <div class="score">{{ attempt.final_score }}</div>
+                        <div class="total">/ {{ attempt.total_marks }}</div>
+                    </div>
+                    <small class="text-muted d-block mt-2">{{ attempt.percentage }}%</small>
+                </div>
+                
+                <!-- Attempt Details -->
+                <div class="col-md-7">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="mb-1">{{ attempt.quiz.title }}</h5>
+                        {% if attempt.status == 'submitted' %}
+                        <span class="badge bg-warning text-dark">
+                            <i class="fas fa-hourglass-half me-1"></i>Awaiting Review
+                        </span>
+                        {% elif attempt.status == 'ai_evaluated' %}
+                        <span class="badge bg-info">
+                            <i class="fas fa-robot me-1"></i>AI Evaluated
+                        </span>
+                        {% elif attempt.status == 'manually_reviewed' %}
+                        <span class="badge bg-primary">
+                            <i class="fas fa-user-check me-1"></i>Reviewed
+                        </span>
+                        {% elif attempt.status == 'finalized' %}
+                        <span class="badge bg-success">
+                            <i class="fas fa-check-circle me-1"></i>Finalized
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-2">
+                        <span class="badge bg-primary">{{ attempt.quiz.subject.name }}</span>
+                        <span class="badge bg-secondary">{{ attempt.quiz.standard.name }}</span>
+                        <span class="badge bg-light text-dark">
+                            <i class="fas fa-question-circle me-1"></i>{{ attempt.quiz.questions.count }} Questions
+                        </span>
+                    </div>
+                    
+                    <!-- Score Breakdown -->
+                    <div class="row text-center mt-3">
+                        {% if attempt.ai_score %}
+                        <div class="col-4">
+                            <div class="small text-muted">AI Score</div>
+                            <div class="fw-bold text-warning">{{ attempt.ai_score }}</div>
+                        </div>
+                        {% endif %}
+                        {% if attempt.manual_score %}
+                        <div class="col-4">
+                            <div class="small text-muted">Manual Score</div>
+                            <div class="fw-bold text-info">{{ attempt.manual_score }}</div>
+                        </div>
+                        {% endif %}
+                        <div class="col-4">
+                            <div class="small text-muted">Final Score</div>
+                            <div class="fw-bold text-success">{{ attempt.final_score }}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Timestamps -->
+                    <div class="mt-3 pt-3 border-top">
+                        <small class="text-muted">
+                            <i class="fas fa-calendar me-1"></i>
+                            Submitted: {{ attempt.submitted_at|date:"M d, Y H:i" }}
+                        </small>
+                        {% if attempt.manually_reviewed_at %}
+                        <small class="text-muted ms-3">
+                            <i class="fas fa-user-check me-1"></i>
+                            Reviewed: {{ attempt.manually_reviewed_at|date:"M d, Y" }}
+                        </small>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Actions -->
+                <div class="col-md-3 text-end">
+                    <a href="{% url 'quiz:descriptive_quiz_results' attempt.id %}" 
+                       class="btn btn-primary w-100 mb-2">
+                        <i class="fas fa-eye me-2"></i>View Results
+                    </a>
+                    
+                    {% if attempt.status in 'submitted,ai_evaluated' %}
+                    <div class="alert alert-info mb-0 p-2">
+                        <small>
+                            <i class="fas fa-info-circle me-1"></i>
+                            Results will be available after teacher review
+                        </small>
+                    </div>
+                    {% elif attempt.teacher_comments %}
+                    <div class="alert alert-success mb-0 p-2">
+                        <small>
+                            <i class="fas fa-comment-dots me-1"></i>
+                            Teacher feedback available
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}">
+                    <i class="fas fa-chevron-left"></i> Previous
+                </a>
+            </li>
+            {% endif %}
+            
+            {% for num in page_obj.paginator.page_range %}
+            <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                <a class="page-link" href="?page={{ num }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}">
+                    {{ num }}
+                </a>
+            </li>
+            {% endfor %}
+            
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}">
+                    Next <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+    
+    {% else %}
+    <!-- Empty State -->
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-clipboard fa-4x text-muted mb-4"></i>
+            <h3>No Attempts Yet</h3>
+            <p class="text-muted mb-4">
+                You haven't attempted any descriptive quizzes yet. Start by taking your first quiz!
+            </p>
+            <a href="{% url 'quiz:student_descriptive_quizzes' %}" class="btn btn-primary btn-lg">
+                <i class="fas fa-pen-fancy me-2"></i>Browse Descriptive Quizzes
+            </a>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Performance Insights -->
+    {% if page_obj %}
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Performance Insights</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-success"><i class="fas fa-thumbs-up me-2"></i>Strengths</h6>
+                    <ul class="small">
+                        <li>Consistent attempt completion rate</li>
+                        <li>Good engagement with descriptive assessments</li>
+                        <li>Regular practice shows dedication</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-warning"><i class="fas fa-chart-line me-2"></i>Areas for Improvement</h6>
+                    <ul class="small">
+                        <li>Review teacher feedback carefully for each attempt</li>
+                        <li>Compare your answers with reference answers</li>
+                        <li>Focus on areas with lower scores</li>
+                        <li>Practice more to improve content quality</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Animate score circles
+    const scoreCircles = document.querySelectorAll('.score-circle');
+    scoreCircles.forEach((circle, index) => {
+        circle.style.opacity = '0';
+        circle.style.transform = 'scale(0.8)';
+        setTimeout(() => {
+            circle.style.transition = 'all 0.5s ease';
+            circle.style.opacity = '1';
+            circle.style.transform = 'scale(1)';
+        }, index * 100);
+    });
+    
+    // Add tooltips to status badges
+    const badges = document.querySelectorAll('.badge');
+    badges.forEach(badge => {
+        if (badge.textContent.includes('Awaiting')) {
+            badge.title = 'Your quiz is being reviewed by your teacher';
+        } else if (badge.textContent.includes('AI')) {
+            badge.title = 'Automated evaluation complete, awaiting teacher review';
+        } else if (badge.textContent.includes('Reviewed')) {
+            badge.title = 'Teacher has reviewed your answers';
+        } else if (badge.textContent.includes('Finalized')) {
+            badge.title = 'Your final scores have been published';
+        }
+    });
+});
+</script>
+{% endblock %}
