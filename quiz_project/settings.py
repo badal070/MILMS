@@ -5,6 +5,9 @@ Complete Django settings for quiz_project
 from pathlib import Path
 import os
 
+
+GEMINI_API_KEY = os.getenv('')
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: Generate new secret key for production!

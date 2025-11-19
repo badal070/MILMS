@@ -60,12 +60,52 @@
         </div>
     </div>
     
-    <!-- Available Quizzes -->
+    <!-- Quick Actions - NEW SECTION -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- MCQ Quizzes Card -->
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100 border-primary">
+                        <div class="card-body text-center">
+                            <i class="fas fa-list-check fa-3x text-primary mb-3"></i>
+                            <h5 class="card-title">Multiple Choice Quizzes</h5>
+                            <p class="text-muted small mb-3">Take MCQ-based assessments with instant scoring</p>
+                            <a href="{% url 'quiz:student_quizzes' %}" class="btn btn-primary w-100">
+                                <i class="fas fa-play me-2"></i>Browse MCQ Quizzes
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Descriptive Quizzes Card - NEW -->
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100 border-success">
+                        <div class="card-body text-center">
+                            <i class="fas fa-pen-fancy fa-3x text-success mb-3"></i>
+                            <h5 class="card-title">Descriptive Quizzes</h5>
+                            <p class="text-muted small mb-3">Essay-type questions with AI-powered evaluation</p>
+                            <a href="{% url 'quiz:student_descriptive_quizzes' %}" class="btn btn-success w-100">
+                                <i class="fas fa-pen me-2"></i>Browse Descriptive Quizzes
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Available MCQ Quizzes -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>Available Quizzes</h5>
+                    <h5 class="mb-0">
+                        <i class="fas fa-clipboard-list me-2"></i>Available MCQ Quizzes
+                    </h5>
                     <a href="{% url 'quiz:student_quizzes' %}" class="btn btn-sm btn-light">View All</a>
                 </div>
                 <div class="card-body">
@@ -95,19 +135,71 @@
                         {% endfor %}
                     </div>
                     {% else %}
-                    <p class="text-muted text-center py-4">No quizzes available at the moment.</p>
+                    <p class="text-muted text-center py-4">No MCQ quizzes available at the moment.</p>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- Recent Attempts -->
-    <div class="row">
-        <div class="col-md-6 mb-4">
+    <!-- Available Descriptive Quizzes - NEW SECTION -->
+    <div class="row mb-4">
+        <div class="col-12">
             <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-pen-fancy me-2"></i>Available Descriptive Quizzes
+                    </h5>
+                    <a href="{% url 'quiz:student_descriptive_quizzes' %}" class="btn btn-sm btn-light">View All</a>
+                </div>
+                <div class="card-body">
+                    {% if available_descriptive_quizzes %}
+                    <div class="row">
+                        {% for quiz in available_descriptive_quizzes %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card h-100 border-success">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="card-title mb-0">{{ quiz.title }}</h6>
+                                        {% if quiz.auto_evaluate %}
+                                        <span class="badge bg-success" title="AI Evaluation Enabled">
+                                            <i class="fas fa-robot"></i>
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                    <p class="card-text text-muted small">{{ quiz.description|truncatewords:12 }}</p>
+                                    <div class="mb-2">
+                                        <span class="badge bg-primary">{{ quiz.subject.name }}</span>
+                                        <span class="badge bg-secondary">{{ quiz.standard.name }}</span>
+                                    </div>
+                                    <div class="small text-muted mb-3">
+                                        <i class="fas fa-question-circle me-1"></i>{{ quiz.questions.count }} Questions
+                                        <span class="mx-2">|</span>
+                                        <i class="fas fa-clock me-1"></i>{{ quiz.duration_minutes }} min
+                                    </div>
+                                    <a href="{% url 'quiz:take_descriptive_quiz' quiz.id %}" class="btn btn-success btn-sm w-100">
+                                        <i class="fas fa-pen me-1"></i>Start Quiz
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center py-4">No descriptive quizzes available at the moment.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Attempts & Content (Side by Side) -->
+    <div class="row">
+        <!-- Recent MCQ Attempts -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
                 <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Attempts</h5>
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent MCQ Attempts</h5>
                 </div>
                 <div class="card-body">
                     {% if recent_attempts %}
@@ -125,14 +217,53 @@
                         {% endfor %}
                     </div>
                     {% else %}
-                    <p class="text-muted text-center py-3">No attempts yet. Start taking quizzes!</p>
+                    <p class="text-muted text-center py-3">No MCQ attempts yet. Start taking quizzes!</p>
                     {% endif %}
                 </div>
             </div>
         </div>
         
-        <!-- Available Content -->
+        <!-- Recent Descriptive Attempts - NEW -->
         <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-pen-to-square me-2"></i>Recent Descriptive Attempts</h5>
+                    <a href="{% url 'quiz:my_descriptive_attempts' %}" class="btn btn-sm btn-light">View All</a>
+                </div>
+                <div class="card-body">
+                    {% if recent_descriptive_attempts %}
+                    <div class="list-group list-group-flush">
+                        {% for attempt in recent_descriptive_attempts %}
+                        <a href="{% url 'quiz:descriptive_quiz_results' attempt.id %}" class="list-group-item list-group-item-action">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">{{ attempt.quiz.title }}</h6>
+                                    <small class="text-muted">{{ attempt.submitted_at|date:"M d, Y H:i" }}</small>
+                                </div>
+                                <div class="text-end">
+                                    {% if attempt.status == 'submitted' %}
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                    {% elif attempt.status == 'ai_evaluated' %}
+                                    <span class="badge bg-info">AI Done</span>
+                                    {% elif attempt.status == 'manually_reviewed' or attempt.status == 'finalized' %}
+                                    <span class="badge bg-success">{{ attempt.final_score }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center py-3">No descriptive attempts yet. Start with an essay quiz!</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Learning Content -->
+    <div class="row">
+        <div class="col-12 mb-4">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-book me-2"></i>Learning Content</h5>
@@ -140,17 +271,23 @@
                 </div>
                 <div class="card-body">
                     {% if available_content %}
-                    <div class="list-group list-group-flush">
+                    <div class="row">
                         {% for content in available_content %}
-                        <a href="{% url 'quiz:content_view' content.id %}" class="list-group-item list-group-item-action" target="_blank">
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-file-pdf fa-2x text-danger me-3"></i>
-                                <div>
-                                    <h6 class="mb-1">{{ content.title }}</h6>
-                                    <small class="text-muted">{{ content.subject.name }} - {{ content.standard.name }}</small>
+                        <div class="col-md-4 mb-3">
+                            <a href="{% url 'quiz:content_view' content.id %}" class="text-decoration-none" target="_blank">
+                                <div class="card h-100 hover-shadow">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-file-pdf fa-2x text-danger me-3"></i>
+                                            <div>
+                                                <h6 class="mb-1">{{ content.title|truncatewords:5 }}</h6>
+                                                <small class="text-muted">{{ content.subject.name }} - {{ content.standard.name }}</small>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </a>
+                            </a>
+                        </div>
                         {% endfor %}
                     </div>
                     {% else %}

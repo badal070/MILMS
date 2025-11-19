@@ -14,7 +14,7 @@
         <div class="col-md-3 mb-3">
             <div class="card stat-card">
                 <div class="card-body">
-                    <div class="stat-label">Quizzes Created</div>
+                    <div class="stat-label">MCQ Quizzes</div>
                     <div class="stat-value">{{ quizzes_created }}</div>
                 </div>
             </div>
@@ -22,8 +22,8 @@
         <div class="col-md-3 mb-3">
             <div class="card stat-card" style="border-left-color: var(--success-color);">
                 <div class="card-body">
-                    <div class="stat-label">Content Uploaded</div>
-                    <div class="stat-value" style="color: var(--success-color);">{{ contents_uploaded }}</div>
+                    <div class="stat-label">Descriptive Quizzes</div>
+                    <div class="stat-value" style="color: var(--success-color);">{{ descriptive_quizzes_created }}</div>
                 </div>
             </div>
         </div>
@@ -38,14 +38,14 @@
         <div class="col-md-3 mb-3">
             <div class="card stat-card" style="border-left-color: var(--secondary-color);">
                 <div class="card-body">
-                    <div class="stat-label">Total Attempts</div>
-                    <div class="stat-value" style="color: var(--secondary-color);">{{ total_attempts }}</div>
+                    <div class="stat-label">Content Uploaded</div>
+                    <div class="stat-value" style="color: var(--secondary-color);">{{ contents_uploaded }}</div>
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- Quick Actions -->
+    <!-- Quick Actions - UPDATED -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
@@ -53,22 +53,92 @@
                     <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
                 </div>
                 <div class="card-body">
-                    <div class="d-flex flex-wrap gap-2">
-                        {% if can_create_quiz %}
-                        <a href="/admin/quiz/quiz/add/" class="btn btn-primary">
-                            <i class="fas fa-plus me-2"></i>Create Quiz
+                    <div class="row">
+                        <!-- MCQ Quizzes -->
+                        <div class="col-md-3 mb-3">
+                            <div class="card h-100 border-primary text-center">
+                                <div class="card-body">
+                                    <i class="fas fa-list-check fa-3x text-primary mb-3"></i>
+                                    <h6 class="card-title">MCQ Quizzes</h6>
+                                    <p class="small text-muted mb-3">Multiple choice assessments</p>
+                                    {% if can_create_quiz %}
+                                    <a href="/admin/quiz/quiz/add/" class="btn btn-primary btn-sm w-100 mb-2">
+                                        <i class="fas fa-plus me-1"></i>Create New
+                                    </a>
+                                    {% endif %}
+                                    <a href="{% url 'quiz:teacher_quizzes' %}" class="btn btn-outline-primary btn-sm w-100">
+                                        <i class="fas fa-eye me-1"></i>View All
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Descriptive Quizzes - NEW -->
+                        <div class="col-md-3 mb-3">
+                            <div class="card h-100 border-success text-center">
+                                <div class="card-body">
+                                    <i class="fas fa-pen-fancy fa-3x text-success mb-3"></i>
+                                    <h6 class="card-title">Descriptive Quizzes</h6>
+                                    <p class="small text-muted mb-3">Essay-type assessments</p>
+                                    {% if can_create_quiz %}
+                                    <a href="/admin/quiz/descriptivequiz/add/" class="btn btn-success btn-sm w-100 mb-2">
+                                        <i class="fas fa-plus me-1"></i>Create New
+                                    </a>
+                                    {% endif %}
+                                    <a href="{% url 'quiz:teacher_descriptive_quizzes' %}" class="btn btn-outline-success btn-sm w-100">
+                                        <i class="fas fa-eye me-1"></i>View All
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Review Pending - NEW -->
+                        <div class="col-md-3 mb-3">
+                            <div class="card h-100 border-warning text-center">
+                                <div class="card-body">
+                                    <i class="fas fa-clipboard-check fa-3x text-warning mb-3"></i>
+                                    <h6 class="card-title">Review Attempts</h6>
+                                    <p class="small text-muted mb-3">Pending evaluations</p>
+                                    <div class="mb-2">
+                                        <span class="badge bg-warning text-dark">{{ pending_reviews }} Pending</span>
+                                    </div>
+                                    <a href="{% url 'quiz:review_pending_attempts' %}" class="btn btn-warning btn-sm w-100">
+                                        <i class="fas fa-pen-to-square me-1"></i>Review Now
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Content Management -->
+                        <div class="col-md-3 mb-3">
+                            <div class="card h-100 border-info text-center">
+                                <div class="card-body">
+                                    <i class="fas fa-upload fa-3x text-info mb-3"></i>
+                                    <h6 class="card-title">Content</h6>
+                                    <p class="small text-muted mb-3">Learning materials</p>
+                                    {% if can_upload_content %}
+                                    <a href="{% url 'quiz:content_upload' %}" class="btn btn-info btn-sm w-100 mb-2">
+                                        <i class="fas fa-upload me-1"></i>Upload New
+                                    </a>
+                                    {% endif %}
+                                    <a href="{% url 'quiz:teacher_content' %}" class="btn btn-outline-info btn-sm w-100">
+                                        <i class="fas fa-folder me-1"></i>View All
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Additional Actions -->
+                    <div class="d-flex flex-wrap gap-2 mt-3 pt-3 border-top">
+                        <a href="{% url 'quiz:teacher_students' %}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-users me-1"></i>View Students
                         </a>
-                        {% endif %}
-                        {% if can_upload_content %}
-                        <a href="{% url 'quiz:content_upload' %}" class="btn btn-success">
-                            <i class="fas fa-upload me-2"></i>Upload Content
+                        <a href="/admin/quiz/descriptivequestion/add/" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-question me-1"></i>Add Descriptive Question
                         </a>
-                        {% endif %}
-                        <a href="{% url 'quiz:teacher_students' %}" class="btn btn-info">
-                            <i class="fas fa-users me-2"></i>View Students
-                        </a>
-                        <a href="{% url 'quiz:teacher_quizzes' %}" class="btn btn-secondary">
-                            <i class="fas fa-clipboard-list me-2"></i>My Quizzes
+                        <a href="/admin/quiz/descriptivequestionupload/upload-descriptive/" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-file-import me-1"></i>Bulk Upload Questions
                         </a>
                     </div>
                 </div>
@@ -76,10 +146,73 @@
         </div>
     </div>
     
-    <!-- Recent Attempts -->
+    <!-- Pending Descriptive Reviews - NEW SECTION -->
+    {% if pending_descriptive_attempts %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning bg-opacity-10">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                            Descriptive Attempts Pending Review
+                        </h5>
+                        <a href="{% url 'quiz:review_pending_attempts' %}" class="btn btn-sm btn-warning">
+                            Review All ({{ pending_reviews }})
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Quiz</th>
+                                    <th>Status</th>
+                                    <th>Submitted</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for attempt in pending_descriptive_attempts %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ attempt.user.profile.display_name }}</strong><br>
+                                        <small class="text-muted">{{ attempt.user.profile.roll_number }}</small>
+                                    </td>
+                                    <td>{{ attempt.quiz.title|truncatewords:8 }}</td>
+                                    <td>
+                                        {% if attempt.status == 'submitted' %}
+                                        <span class="badge bg-danger">New Submission</span>
+                                        {% elif attempt.status == 'ai_evaluated' %}
+                                        <span class="badge bg-warning text-dark">AI Evaluated</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small>{{ attempt.submitted_at|timesince }} ago</small>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'quiz:review_descriptive_attempt' attempt.id %}" 
+                                           class="btn btn-sm btn-primary">
+                                            <i class="fas fa-pen"></i> Review
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Recent MCQ Attempts -->
     <div class="card">
         <div class="card-header">
-            <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Quiz Attempts</h5>
+            <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent MCQ Quiz Attempts</h5>
         </div>
         <div class="card-body">
             {% if recent_attempts %}
@@ -108,7 +241,7 @@
                 </table>
             </div>
             {% else %}
-            <p class="text-muted text-center py-3">No attempts yet.</p>
+            <p class="text-muted text-center py-3">No MCQ attempts yet.</p>
             {% endif %}
         </div>
     </div>

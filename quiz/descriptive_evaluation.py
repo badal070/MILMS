@@ -1,7 +1,7 @@
 """
-Answer Evaluator Utils - Free Tier Version
-A comprehensive utility for evaluating descriptive answers using free AI APIs
-Uses Hugging Face Inference API (Free Tier)
+Answer Evaluator Utils - Gemini Free Tier Version
+A comprehensive utility for evaluating descriptive answers using Google's Gemini API
+Uses Google Gemini API (Free Tier - 15 requests/minute, 1500 requests/day)
 """
 
 import os
@@ -14,61 +14,68 @@ import time
 
 class AnswerEvaluator:
     """
-    AI-powered evaluator for descriptive answers using free Hugging Face API
+    AI-powered evaluator for descriptive answers using free Google Gemini API
     """
     
-    def __init__(self, api_key: str, model: str = "mistralai/Mixtral-8x7B-Instruct-v0.1"):
+    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
         """
         Initialize the evaluator with API credentials
         
         Args:
-            api_key: Hugging Face API key (free tier available at huggingface.co)
+            api_key: Google Gemini API key (free tier available at https://makersuite.google.com/app/apikey)
             model: Model to use - options:
-                - "mistralai/Mixtral-8x7B-Instruct-v0.1" (recommended, powerful)
-                - "meta-llama/Llama-2-7b-chat-hf"
-                - "microsoft/Phi-3-mini-4k-instruct"
+                - "gemini-1.5-flash" (recommended, fast and efficient)
+                - "gemini-1.5-pro" (more capable, slower)
+                - "gemini-pro" (older version)
         """
         self.api_key = api_key
         self.model = model
-        self.api_url = f"https://api-inference.huggingface.co/models/{model}"
-        self.headers = {"Authorization": f"Bearer {api_key}"}
+        self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        self.headers = {"Content-Type": "application/json"}
     
     def _call_api(self, prompt: str, max_retries: int = 3) -> str:
-        """Call Hugging Face API with retry logic"""
+        """Call Google Gemini API with retry logic"""
         
         payload = {
-            "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": 1024,
+            "contents": [{
+                "parts": [{
+                    "text": prompt
+                }]
+            }],
+            "generationConfig": {
                 "temperature": 0.3,
-                "top_p": 0.9,
-                "return_full_text": False
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 1024,
             }
         }
         
         for attempt in range(max_retries):
             try:
                 response = requests.post(
-                    self.api_url, 
-                    headers=self.headers, 
+                    f"{self.api_url}?key={self.api_key}",
+                    headers=self.headers,
                     json=payload,
                     timeout=30
                 )
                 
-                if response.status_code == 503:
-                    # Model is loading, wait and retry
-                    wait_time = 10 * (attempt + 1)
-                    print(f"Model loading, waiting {wait_time}s...")
+                # Check for rate limiting
+                if response.status_code == 429:
+                    wait_time = 5 * (attempt + 1)
+                    print(f"Rate limit hit, waiting {wait_time}s...")
                     time.sleep(wait_time)
                     continue
                 
                 response.raise_for_status()
                 result = response.json()
                 
-                if isinstance(result, list) and len(result) > 0:
-                    return result[0].get("generated_text", "")
-                elif isinstance(result, dict):
-                    return result.get("generated_text", "")
+                # Extract text from Gemini response
+                if "candidates" in result and len(result["candidates"]) > 0:
+                    candidate = result["candidates"][0]
+                    if "content" in candidate and "parts" in candidate["content"]:
+                        parts = candidate["content"]["parts"]
+                        if len(parts) > 0 and "text" in parts[0]:
+                            return parts[0]["text"]
                 
                 return str(result)
                 
@@ -145,19 +152,18 @@ class AnswerEvaluator:
     def _check_spelling(self, question: str, answer: str) -> Dict:
         """Check spelling mistakes in major keywords"""
         
-        prompt = f"""[INST] You are an expert evaluator. Analyze the spelling in this answer.
+        prompt = f"""You are an expert evaluator. Analyze the spelling in this answer.
 
 Question: {question}
 Answer: {answer}
 
-Provide your analysis in this exact JSON format (no other text):
+Provide your analysis in this exact JSON format (no other text, no markdown):
 {{
     "keywords_checked": ["keyword1", "keyword2"],
     "spelling_errors": [{{"word": "misspelled", "correction": "correct", "severity": "high"}}],
     "spelling_score": 8.5,
     "notes": "Brief assessment"
-}}
-[/INST]"""
+}}"""
         
         try:
             response = self._call_api(prompt)
@@ -181,20 +187,19 @@ Provide your analysis in this exact JSON format (no other text):
     def _check_relevance(self, question: str, answer: str) -> Dict:
         """Check if answer is relevant to the question"""
         
-        prompt = f"""[INST] You are an expert evaluator. Check if this answer is relevant to the question.
+        prompt = f"""You are an expert evaluator. Check if this answer is relevant to the question.
 
 Question: {question}
 Answer: {answer}
 
-Provide your analysis in this exact JSON format (no other text):
+Provide your analysis in this exact JSON format (no other text, no markdown):
 {{
     "is_relevant": true,
     "relevance_score": 8.5,
     "addresses_question": true,
     "off_topic_content": [],
     "notes": "Brief explanation"
-}}
-[/INST]"""
+}}"""
         
         try:
             response = self._call_api(prompt)
@@ -226,12 +231,12 @@ Provide your analysis in this exact JSON format (no other text):
         
         standard_text = f"\n\nReference Answer:\n{standard_answer}" if standard_answer else ""
         
-        prompt = f"""[INST] You are an expert evaluator. Assess the quality and completeness of this answer.
+        prompt = f"""You are an expert evaluator. Assess the quality and completeness of this answer.
 
 Question: {question}
 User's Answer: {answer}{standard_text}
 
-Provide your analysis in this exact JSON format (no other text):
+Provide your analysis in this exact JSON format (no other text, no markdown):
 {{
     "content_score": 8.5,
     "elegance_score": 7.5,
@@ -240,8 +245,7 @@ Provide your analysis in this exact JSON format (no other text):
     "strengths": ["strength1"],
     "weaknesses": ["weakness1"],
     "notes": "Overall assessment"
-}}
-[/INST]"""
+}}"""
         
         try:
             response = self._call_api(prompt)
@@ -271,19 +275,18 @@ Provide your analysis in this exact JSON format (no other text):
     def _check_grammar(self, answer: str) -> Dict:
         """Check grammar and language quality"""
         
-        prompt = f"""[INST] You are an expert evaluator. Analyze the grammar in this text.
+        prompt = f"""You are an expert evaluator. Analyze the grammar in this text.
 
 Text: {answer}
 
-Provide your analysis in this exact JSON format (no other text):
+Provide your analysis in this exact JSON format (no other text, no markdown):
 {{
     "grammar_score": 8.5,
     "grammar_errors": [{{"error": "description", "correction": "fix"}}],
     "sentence_structure_score": 8.0,
     "clarity_score": 9.0,
     "notes": "Brief assessment"
-}}
-[/INST]"""
+}}"""
         
         try:
             response = self._call_api(prompt)
@@ -431,18 +434,19 @@ def evaluate_descriptive_answer(
     user_answer: str,
     standard_answer: Optional[str] = None,
     max_score: int = 100,
-    model: str = "mistralai/Mixtral-8x7B-Instruct-v0.1"
+    model: str = "gemini-1.5-flash"
 ) -> Dict:
     """
-    Quick function to evaluate a descriptive answer using free Hugging Face API
+    Quick function to evaluate a descriptive answer using free Google Gemini API
     
     Setup:
-        1. Get free API key from https://huggingface.co/settings/tokens
+        1. Get free API key from https://makersuite.google.com/app/apikey
         2. No credit card required!
+        3. Free tier limits: 15 requests/minute, 1500 requests/day
     
     Usage:
         result = evaluate_descriptive_answer(
-            api_key="hf_xxxxx",
+            api_key="AIzaSy...",
             question="What is photosynthesis?",
             user_answer="Photosynthesis is when plants make food...",
             standard_answer="Photosynthesis is the process...",
@@ -459,7 +463,7 @@ def evaluate_descriptive_answer(
 # Example usage
 if __name__ == "__main__":
     # Get API key from environment or use directly
-    API_KEY = os.getenv("HUGGINGFACE_API_KEY", "your-hf-api-key-here")
+    API_KEY = os.getenv("GEMINI_API_KEY", "your-gemini-api-key-here")
     
     question = "Explain the process of photosynthesis in plants."
     
@@ -480,7 +484,7 @@ if __name__ == "__main__":
     energy source for the plant, while oxygen is released as a byproduct.
     """
     
-    print("Starting evaluation with Hugging Face Free API...")
+    print("Starting evaluation with Google Gemini Free API...")
     print("=" * 60)
     
     evaluator = AnswerEvaluator(api_key=API_KEY)
@@ -501,3 +505,9 @@ if __name__ == "__main__":
     print(f"Relevance: {result['relevance_analysis'].get('relevance_score', 'N/A')}/10")
     print(f"Content: {result['content_analysis'].get('content_score', 'N/A')}/10")
     print(f"Grammar: {result['grammar_analysis'].get('grammar_score', 'N/A')}/10")
+    
+#Q: Question text here?
+#Marks: 10
+#Word Limit: 500
+#Reference Answer: Answer text...
+#Guidelines: Key points...
