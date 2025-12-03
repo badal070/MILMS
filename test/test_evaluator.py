@@ -1,6 +1,6 @@
 from descriptive_evaluation import evaluate_descriptive_answer
 
-API_KEY = 'AIzaSyD2TWT-jx9gJKHqP1NA3zjeVw38UGPfiOY'
+API_KEY = ''
 
 def pretty_print_evaluation(result: dict):
     print("\n" + "="*70)
